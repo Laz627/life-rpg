@@ -645,7 +645,8 @@ function renderCharacterStats() {
         'Total Tasks Completed',
         'Tasks Remaining Today', 
         'Tasks Skipped Today',
-        'Negative Habits Completed',
+        'Negative Habits Done',        // ← New: Only counts when they did it
+        'Negative Habits Avoided',     // ← New: Only counts when they avoided it
         'Total XP',
         'Active Quests',
         'Completed Quests'
