@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life RPG</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+</head>
+<body>
+    <!-- API Key Modal -->
+    <div id="apiKeyModal" class="modal">
+        <div class="modal-content">
+            <h2>Welcome to Life RPG!</h2>
+            <p>To use AI features, please enter your OpenAI API key:</p>
+            <p class="help-text">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Dashboard</a></p>
+            <input type="password" id="apiKeyInput" placeholder="sk-...">
+            <button onclick="saveApiKey()">Save API Key</button>
+            <button onclick="skipApiKey()">Skip (No AI Features)</button>
+            <p class="info-text">Your API key is stored only in your browser. You pay OpenAI directly for usage.</p>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app">
+        <header>
+            <h1>Life RPG</h1>
+            <div id="dateDisplay"></div>
+        </header>
+
+        <main>
+            <!-- Stats Section -->
+            <section id="stats" class="card">
+                <h2>Character Stats</h2>
+                <div id="statsContent">Loading...</div>
+            </section>
+
+            <!-- Tasks Section -->
+            <section id="tasks" class="card">
+                <h2>Today's Tasks</h2>
+                <div id="addTaskForm">
+                    <input type="text" id="taskDescription" placeholder="Task description...">
+                    <select id="taskAttribute">
+                        <option value="">Select Attribute</option>
+                    </select>
+                    <select id="taskSubskill">
+                        <option value="">Select Subskill</option>
+                    </select>
+                    <select id="taskDifficulty">
+                        <option value="easy">Easy (10 XP)</option>
+                        <option value="medium" selected>Medium (25 XP)</option>
+                        <option value="hard">Hard (50 XP)</option>
+                        <option value="extra_hard">Extra Hard (100 XP)</option>
+                    </select>
+                    <button onclick="addTask()">Add Task</button>
+                </div>
+                <div id="tasksList"></div>
+            </section>
+
+            <!-- Attributes Section -->
+            <section id="attributes" class="card">
+                <h2>Attributes</h2>
+                <div id="attributesContent">Loading...</div>
+            </section>
+
+            <!-- Quests Section -->
+            <section id="quests" class="card">
+                <h2>Active Quests</h2>
+                <button onclick="generateQuest()" id="generateQuestBtn">Generate New Quest (AI)</button>
+                <div id="questsList"></div>
+            </section>
+
+            <!-- Daily Narrative -->
+            <section id="narrative" class="card">
+                <h2>Today's Adventure</h2>
+                <button onclick="generateNarrative()" id="generateNarrativeBtn">Generate Narrative (AI)</button>
+                <div id="narrativeContent"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
