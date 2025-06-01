@@ -196,7 +196,7 @@
                 </div>
             </div>
 
-            <!-- Add Quest Form (Hidden by default) -->
+            <!-- Add Quest Form (Updated with enhancement button) -->
             <div id="add-quest-form-container" class="form-container" style="display: none;">
                 <form id="add-quest-form" class="add-entity-form">
                     <h4>Create New Quest</h4>
@@ -206,7 +206,10 @@
                     </div>
                     <div class="form-group">
                         <label for="quest-description">Quest Description:</label>
-                        <textarea id="quest-description"></textarea>
+                        <div class="quest-desc-container">
+                            <textarea id="quest-description" placeholder="Enter your goal (e.g., 'Exercise for 30 minutes daily')"></textarea>
+                            <button type="button" id="enhance-quest-desc-btn" class="btn-warning enhance-desc-btn">✨ Enhance Description (AI)</button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="quest-difficulty">Difficulty:</label>
