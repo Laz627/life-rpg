@@ -28,7 +28,7 @@ function checkAPIKey() {
 }
 
 function enableAIFeatures() {
-    const generateBtns = document.querySelectorAll('[id*="generate"]');
+    const generateBtns = document.querySelectorAll('[id*="generate"], [id*="enhance"]');
     generateBtns.forEach(btn => {
         btn.disabled = false;
         btn.textContent = btn.textContent.replace(' (Requires API Key)', '');
@@ -36,7 +36,7 @@ function enableAIFeatures() {
 }
 
 function disableAIFeatures() {
-    const generateBtns = document.querySelectorAll('[id*="generate"]');
+    const generateBtns = document.querySelectorAll('[id*="generate"], [id*="enhance"]');
     generateBtns.forEach(btn => {
         btn.disabled = true;
         if (!btn.textContent.includes('(Requires API Key)')) {
@@ -115,6 +115,7 @@ function setupEventListeners() {
     document.getElementById('add-quest-btn').addEventListener('click', () => toggleForm('add-quest-form-container'));
     document.getElementById('add-quest-form').addEventListener('submit', handleAddQuest);
     document.getElementById('generate-quest-btn').addEventListener('click', handleGenerateQuest);
+    document.getElementById('enhance-quest-desc-btn').addEventListener('click', enhanceQuestDescription);
     
     // Narrative Management
     document.getElementById('refresh-narrative-btn').addEventListener('click', () => fetchAndRenderDailyNarrative(currentSelectedDate, true)); // true to force regeneration
@@ -158,6 +159,83 @@ function setupRadioGroup(groupId, difficultySelectId, stressSliderId, stressValu
     // Initialize by clicking the first selected or first overall if none are pre-selected
     const selectedOption = group.querySelector('.radio-option.selected') || options[0];
     if (selectedOption) selectedOption.click();
+}
+
+// --- Enhanced Features ---
+
+// Enhanced quest description
+async function enhanceQuestDescription() {
+    const apiKey = localStorage.getItem('openai_api_key');
+    if (!apiKey) {
+        document.getElementById('apiKeyModal').style.display = 'block';
+        return;
+    }
+    
+    const descriptionField = document.getElementById('quest-description');
+    const originalDescription = descriptionField.value.trim();
+    
+    if (!originalDescription) {
+        alert('Please enter a description first');
+        return;
+    }
+    
+    const enhanceBtn = document.getElementById('enhance-quest-desc-btn');
+    enhanceBtn.disabled = true;
+    enhanceBtn.textContent = 'Enhancing...';
+    
+    try {
+        const response = await apiCall('/api/enhance_quest_description', 'POST', {
+            api_key: apiKey,
+            description: originalDescription
+        });
+        
+        if (response && response.enhanced_description) {
+            descriptionField.value = response.enhanced_description;
+        }
+    } catch (error) {
+        console.error('Error enhancing description:', error);
+    }
+    
+    enhanceBtn.disabled = false;
+    enhanceBtn.textContent = '✨ Enhance Description (AI)';
+}
+
+// Complete negative habit with Yes/No option
+async function completeNegativeHabit(taskId, didNegative) {
+    const result = await apiCall('/api/complete_negative_habit', 'POST', { 
+        task_id: taskId, 
+        did_negative: didNegative 
+    });
+    
+    if (result && result.success) {
+        await fetchAndRenderTasks(currentSelectedDate);
+        await fetchAndRenderAttributes();
+        await fetchAndRenderStats();
+        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
+        
+        // Show feedback message
+        const message = didNegative ? 
+            "Habit tracked. Don't worry, tomorrow is a new opportunity!" : 
+            "Great job avoiding that habit! You earned bonus XP!";
+        
+        setTimeout(() => alert(message), 100);
+        
+        // Potentially fetch milestones if completion could trigger one
+        if (Math.random() < 0.2) {
+           await fetchAndRenderMilestones(milestones.page);
+        }
+    }
+}
+
+// Skip task function
+async function skipTask(taskId) {
+    if (!confirm('Mark this task as skipped? It will not count towards your progress.')) return;
+    
+    const result = await apiCall('/api/skip_task', 'POST', { task_id: taskId });
+    if (result && result.success) {
+        await fetchAndRenderTasks(currentSelectedDate);
+        await fetchAndRenderStats();
+    }
 }
 
 // --- Event Handlers ---
@@ -493,17 +571,47 @@ function renderAttributes() {
 
 function renderTasks(dateToList = currentSelectedDate) {
     const container = document.getElementById('task-list');
-    container.innerHTML = ''; // Clear previous tasks
+    container.innerHTML = '';
 
     if (!tasks || tasks.length === 0) {
-        container.innerHTML = '<li>No tasks for this day.</li>'; return;
+        container.innerHTML = '<li>No tasks for this day.</li>'; 
+        return;
     }
+    
     tasks.forEach(task => {
         const taskEl = document.createElement('li');
-        taskEl.className = `task-item ${task.completed ? 'task-completed' : ''} ${task.is_negative_habit ? 'negative-habit' : ''}`;
+        let taskClasses = 'task-item';
+        
+        if (task.completed) taskClasses += ' task-completed';
+        if (task.skipped) taskClasses += ' task-skipped';
+        if (task.is_negative_habit) taskClasses += ' negative-habit';
+        
+        taskEl.className = taskClasses;
         
         let attributeText = task.attribute ? `[${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}]` : '';
         let xpText = task.is_negative_habit ? '' : `(${task.xp} XP)`;
+        
+        let actionButtons = '';
+        
+        if (task.completed) {
+            actionButtons = '<span class="completion-status">✓ Done!</span>';
+        } else if (task.skipped) {
+            actionButtons = '<span class="completion-status">⏭ Skipped</span>';
+        } else if (task.is_negative_habit) {
+            // Special buttons for negative habits
+            actionButtons = `
+                <div class="task-actions negative-habit-actions">
+                    <button onclick="completeNegativeHabit(${task.id}, true)" class="btn-danger btn-small">Yes, I did it</button>
+                    <button onclick="completeNegativeHabit(${task.id}, false)" class="btn-success btn-small">No, I avoided it</button>
+                </div>
+            `;
+        } else {
+            // Regular task buttons
+            actionButtons = `
+                <button onclick="completeTask(${task.id})" class="btn-success btn-small">✓ Complete</button>
+                <button onclick="skipTask(${task.id})" class="btn-warning btn-small">⏭ Skip</button>
+            `;
+        }
         
         taskEl.innerHTML = `
             <div>
@@ -511,7 +619,7 @@ function renderTasks(dateToList = currentSelectedDate) {
                 <small>Stress: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}</small>
             </div>
             <div class="task-actions">
-                ${!task.completed ? `<button onclick="completeTask(${task.id})" class="btn-success btn-small">✓ Complete</button>` : '<span class="completion-status">✓ Done!</span>'}
+                ${actionButtons}
                 <button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑 Delete</button>
             </div>
         `;
@@ -521,7 +629,7 @@ function renderTasks(dateToList = currentSelectedDate) {
 
 function renderCharacterStats() {
     const container = document.getElementById('character-stats');
-    container.innerHTML = ''; // Clear
+    container.innerHTML = '';
     const levelDisplay = document.getElementById('character-level');
 
     if (Object.keys(characterStats).length === 0) {
@@ -531,29 +639,45 @@ function renderCharacterStats() {
     }
     
     const totalXp = characterStats['Total XP'] || 0;
-    // More gradual leveling, e.g. 1000 XP for level 2, then sqrt scaling
     const overallLevel = totalXp < 1000 ? 1 : Math.floor(1 + Math.sqrt((totalXp - 1000) / 750) + 1); 
     levelDisplay.textContent = `Level ${overallLevel}`;
 
-    for (const [stat, value] of Object.entries(characterStats)) {
-        if (stat === 'Stress') {
-            const stressFill = document.getElementById('stress-fill');
-            const stressPercent = Math.min(100, Math.max(0, value)); // Assuming stress is already 0-100
-            stressFill.style.width = `${stressPercent}%`;
-            stressFill.textContent = `${value}%`;
-            stressFill.title = `Stress: ${value}%`;
-        } else if (stat !== 'Total XP') { 
+    // Create stats in a specific order
+    const statOrder = [
+        'Total Tasks Completed',
+        'Tasks Remaining Today', 
+        'Tasks Skipped Today',
+        'Negative Habits Completed',
+        'Total XP',
+        'Active Quests',
+        'Completed Quests'
+    ];
+
+    statOrder.forEach(statName => {
+        if (characterStats.hasOwnProperty(statName)) {
             const statEl = document.createElement('div');
             statEl.className = 'stat-entry';
-            statEl.innerHTML = `<strong>${stat.replace(/([A-Z])/g, ' $1').trim()}:</strong> ${value}`; // Add spaces to stat names
+            
+            // Highlight remaining tasks in red if > 0
+            let statValue = characterStats[statName];
+            let style = '';
+            if (statName === 'Tasks Remaining Today' && statValue > 0) {
+                style = ' style="color: var(--negative-color); font-weight: bold;"';
+            }
+            
+            statEl.innerHTML = `<strong${style}>${statName.replace(/([A-Z])/g, ' $1').trim()}:</strong> <span${style}>${statValue}</span>`;
             container.appendChild(statEl);
         }
+    });
+
+    // Handle stress separately
+    if (characterStats['Stress'] !== undefined) {
+        const stressFill = document.getElementById('stress-fill');
+        const stressPercent = Math.min(100, Math.max(0, characterStats['Stress']));
+        stressFill.style.width = `${stressPercent}%`;
+        stressFill.textContent = `${characterStats['Stress']}%`;
+        stressFill.title = `Stress: ${characterStats['Stress']}%`;
     }
-     // Explicitly add Total XP if not handled by loop
-    const totalXPEl = document.createElement('div');
-    totalXPEl.className = 'stat-entry';
-    totalXPEl.innerHTML = `<strong>Total XP:</strong> ${totalXp}`;
-    container.appendChild(totalXPEl);
 }
 
 function renderRecurringTasks() {
