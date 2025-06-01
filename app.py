@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from openai import OpenAI
+import openai
 import datetime
 import random
 import time
@@ -172,8 +172,11 @@ def calculate_level_from_exp(exp):
 def generate_ai_response(prompt, system_message, api_key):
     """Generate AI response using user's API key"""
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
+        # Set the API key globally
+        openai.api_key = api_key
+        
+        # Use the older style API call that's more compatible
+        response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_message},
@@ -206,13 +209,13 @@ def test_api_key():
         return jsonify({'success': False, 'error': 'No API key provided'})
     
     try:
-        # Create OpenAI client with the provided key
-        client = OpenAI(api_key=api_key)
+        # Set the API key
+        openai.api_key = api_key
         
-        # Make a minimal test request
-        response = client.chat.completions.create(
+        # Make a minimal test request using the older API style
+        response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": "Hi"}],
+            messages=[{"role": "user", "content": "test"}],
             max_tokens=5
         )
         
