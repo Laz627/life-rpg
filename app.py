@@ -1223,6 +1223,16 @@ def api_reset_day():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/add-negative-habit-column')
+def add_negative_habit_column():
+    """Add the new negative_habit_done column to existing tasks table"""
+    try:
+        # Add the new column using raw SQL
+        db.engine.execute('ALTER TABLE task ADD COLUMN negative_habit_done BOOLEAN DEFAULT NULL')
+        return "Successfully added negative_habit_done column to task table!"
+    except Exception as e:
+        return f"Error adding column (it might already exist): {str(e)}"
+
 # Initialize database tables
 with app.app_context():
     db.create_all()
