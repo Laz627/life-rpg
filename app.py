@@ -1,23 +1,34 @@
 import os
-import sqlite3
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 import openai
 import datetime
 import random
-import time
 import math
 import json
-import calendar
-from flask import Flask, render_template, jsonify, request
-from flask_cors import CORS
-import contextlib
-import re
 
 # --- Configuration ---
 app = Flask(__name__)
 CORS(app)
 
-# Database will be created in user's app data
-DB_FILE = "life_rpg.db"
+# Configuration for PostgreSQL and sessions
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///life_rpg.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Handle Railway PostgreSQL URL format
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
+
+# Initialize extensions
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Please log in to access your Life RPG.'
 
 # --- Constants ---
 ATTRIBUTES = {
@@ -31,148 +42,126 @@ ATTRIBUTES = {
 QUEST_DIFFICULTIES = ["Easy", "Medium", "Hard", "Epic"]
 TASK_DIFFICULTIES = {"easy": 10, "medium": 25, "hard": 50, "extra_hard": 100}
 
-# --- Database Functions ---
-def get_db():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+# --- Database Models ---
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationships (one-to-many)
+    attributes = db.relationship('Attribute', backref='user', lazy=True, cascade='all, delete-orphan')
+    tasks = db.relationship('Task', backref='user', lazy=True, cascade='all, delete-orphan')
+    quests = db.relationship('Quest', backref='user', lazy=True, cascade='all, delete-orphan')
+    milestones = db.relationship('Milestone', backref='user', lazy=True, cascade='all, delete-orphan')
+    narratives = db.relationship('DailyNarrative', backref='user', lazy=True, cascade='all, delete-orphan')
+    recurring_tasks = db.relationship('RecurringTask', backref='user', lazy=True, cascade='all, delete-orphan')
+    daily_stats = db.relationship('DailyStat', backref='user', lazy=True, cascade='all, delete-orphan')
+    character_stats = db.relationship('CharacterStat', backref='user', lazy=True, cascade='all, delete-orphan')
 
-def init_db():
-    conn = get_db()
-    cursor = conn.cursor()
+class Attribute(db.Model):
+    attribute_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text)
+    current_xp = db.Column(db.Integer, default=0)
     
-    # Create tables with updated schema
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS attributes (
-            attribute_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
-            description TEXT,
-            current_xp INTEGER DEFAULT 0
-        )
-    """)
+    # Relationships
+    subskills = db.relationship('Subskill', backref='attribute', lazy=True, cascade='all, delete-orphan')
+    tasks = db.relationship('Task', backref='attribute', lazy=True)
     
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS subskills (
-            subskill_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            attribute_id INTEGER,
-            name TEXT NOT NULL,
-            current_xp INTEGER DEFAULT 0,
-            FOREIGN KEY (attribute_id) REFERENCES attributes(attribute_id)
-        )
-    """)
+    # Unique constraint per user
+    __table_args__ = (db.UniqueConstraint('user_id', 'name'),)
+
+class Subskill(db.Model):
+    subskill_id = db.Column(db.Integer, primary_key=True)
+    attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    current_xp = db.Column(db.Integer, default=0)
     
-    # Check if is_skipped column exists, add if not
-    cursor.execute("PRAGMA table_info(tasks)")
-    columns = [column[1] for column in cursor.fetchall()]
+    # Relationships
+    tasks = db.relationship('Task', backref='subskill', lazy=True)
+
+class Task(db.Model):
+    task_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    task_type = db.Column(db.String(20), nullable=False)
+    attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'))
+    subskill_id = db.Column(db.Integer, db.ForeignKey('subskill.subskill_id'))
+    xp_gained = db.Column(db.Integer, default=0)
+    stress_effect = db.Column(db.Integer, default=0)
+    is_completed = db.Column(db.Boolean, default=False)
+    is_skipped = db.Column(db.Boolean, default=False)
+    is_negative_habit = db.Column(db.Boolean, default=False)
+
+class Quest(db.Model):
+    quest_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    difficulty = db.Column(db.String(20))
+    xp_reward = db.Column(db.Integer)
+    attribute_focus = db.Column(db.String(50))
+    start_date = db.Column(db.String(10), nullable=False)
+    due_date = db.Column(db.String(10))
+    completed_date = db.Column(db.String(10))
+    status = db.Column(db.String(20), default='Active')
+
+class Milestone(db.Model):
+    milestone_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'))
+    achievement_type = db.Column(db.String(50), nullable=False)
+
+class DailyNarrative(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    narrative = db.Column(db.Text, nullable=False)
     
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            task_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            description TEXT NOT NULL,
-            task_type TEXT NOT NULL,
-            attribute_id INTEGER,
-            subskill_id INTEGER,
-            xp_gained INTEGER DEFAULT 0,
-            stress_effect INTEGER DEFAULT 0,
-            is_completed BOOLEAN DEFAULT 0,
-            is_skipped BOOLEAN DEFAULT 0,
-            quantity REAL DEFAULT 1,
-            is_negative_habit BOOLEAN DEFAULT 0,
-            FOREIGN KEY (attribute_id) REFERENCES attributes(attribute_id),
-            FOREIGN KEY (subskill_id) REFERENCES subskills(subskill_id)
-        )
-    """)
+    __table_args__ = (db.UniqueConstraint('user_id', 'date'),)
+
+class RecurringTask(db.Model):
+    recurring_task_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'))
+    subskill_id = db.Column(db.Integer, db.ForeignKey('subskill.subskill_id'))
+    xp_value = db.Column(db.Integer, default=0)
+    stress_effect = db.Column(db.Integer, default=0)
+    is_negative_habit = db.Column(db.Boolean, default=False)
+    start_date = db.Column(db.String(10), nullable=False)
+    last_added_date = db.Column(db.String(10))
+    is_active = db.Column(db.Boolean, default=True)
+
+class DailyStat(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    stress_level = db.Column(db.Integer, default=0)
+    tasks_completed = db.Column(db.Integer, default=0)
+    total_xp_gained = db.Column(db.Integer, default=0)
     
-    # Add is_skipped column if it doesn't exist
-    if 'is_skipped' not in columns:
-        try:
-            cursor.execute("ALTER TABLE tasks ADD COLUMN is_skipped BOOLEAN DEFAULT 0")
-            print("Added is_skipped column to tasks table")
-        except sqlite3.OperationalError as e:
-            print(f"Column might already exist: {e}")
+    __table_args__ = (db.UniqueConstraint('user_id', 'date'),)
+
+class CharacterStat(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    stat_name = db.Column(db.String(50), nullable=False)
+    value = db.Column(db.Integer, default=0)
     
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS daily_stats (
-            date TEXT PRIMARY KEY,
-            stress_level INTEGER DEFAULT 0,
-            tasks_completed INTEGER DEFAULT 0,
-            total_xp_gained INTEGER DEFAULT 0
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS character_stats (
-            stat_name TEXT PRIMARY KEY,
-            value INTEGER DEFAULT 0
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS milestones (
-            milestone_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            attribute_id INTEGER,
-            achievement_type TEXT NOT NULL
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS daily_narratives (
-            date TEXT PRIMARY KEY,
-            narrative TEXT NOT NULL
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS quests (
-            quest_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT,
-            difficulty TEXT,
-            xp_reward INTEGER,
-            attribute_focus TEXT,
-            start_date TEXT NOT NULL,
-            due_date TEXT,
-            completed_date TEXT,
-            status TEXT DEFAULT 'Active'
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS recurring_tasks (
-            recurring_task_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            description TEXT NOT NULL,
-            attribute_id INTEGER,
-            subskill_id INTEGER,
-            xp_value INTEGER DEFAULT 0,
-            stress_effect INTEGER DEFAULT 0,
-            is_negative_habit BOOLEAN DEFAULT 0,
-            start_date TEXT NOT NULL,
-            last_added_date TEXT,
-            is_active BOOLEAN DEFAULT 1
-        )
-    """)
-    
-    # Initialize attributes and subskills
-    for attr_name, sub_list in ATTRIBUTES.items():
-        cursor.execute("INSERT OR IGNORE INTO attributes (name, description) VALUES (?, ?)",
-                      (attr_name, f"Your {attr_name} attribute"))
-        
-        cursor.execute("SELECT attribute_id FROM attributes WHERE name = ?", (attr_name,))
-        result = cursor.fetchone()
-        if result:
-            attr_id = result[0]
-            for sub_name in sub_list:
-                cursor.execute("INSERT OR IGNORE INTO subskills (attribute_id, name) VALUES (?, ?)",
-                              (attr_id, sub_name))
-    
-    cursor.execute("INSERT OR IGNORE INTO character_stats (stat_name, value) VALUES ('Stress', 0)")
-    
-    conn.commit()
-    conn.close()
+    __table_args__ = (db.UniqueConstraint('user_id', 'stat_name'),)
+
+# --- Login Manager ---
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # --- Helper Functions ---
 def calculate_exp_for_level(level):
@@ -200,17 +189,120 @@ def generate_ai_response(prompt, system_message, api_key):
         print(f"Error with AI generation: {e}")
         return f"AI Error: {str(e)}"
 
-# --- Routes ---
-@app.route('/')
-def index():
-    return render_template('index.html')
+def initialize_user_data(user):
+    """Initialize default attributes and stats for a new user"""
+    # Create default attributes
+    for attr_name, sub_list in ATTRIBUTES.items():
+        attribute = Attribute(
+            user_id=user.id,
+            name=attr_name,
+            description=f"Your {attr_name} attribute",
+            current_xp=0
+        )
+        db.session.add(attribute)
+        db.session.flush()  # Get the ID
+        
+        # Create subskills
+        for sub_name in sub_list:
+            subskill = Subskill(
+                attribute_id=attribute.attribute_id,
+                name=sub_name,
+                current_xp=0
+            )
+            db.session.add(subskill)
+    
+    # Create default character stats
+    stress_stat = CharacterStat(
+        user_id=user.id,
+        stat_name='Stress',
+        value=0
+    )
+    db.session.add(stress_stat)
+    
+    db.session.commit()
 
-@app.route('/api/init')
-def api_init():
-    init_db()
-    return jsonify({'success': True})
+# --- Authentication Routes ---
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        data = request.get_json() if request.is_json else request.form
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        
+        # Validation
+        if not username or not email or not password:
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'All fields are required'}), 400
+            flash('All fields are required')
+            return render_template('register.html')
+        
+        # Check if user exists
+        if User.query.filter((User.username == username) | (User.email == email)).first():
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Username or email already exists'}), 400
+            flash('Username or email already exists')
+            return render_template('register.html')
+        
+        # Create new user
+        user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password)
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        # Initialize user data
+        initialize_user_data(user)
+        
+        # Log them in
+        login_user(user)
+        
+        if request.is_json:
+            return jsonify({'success': True, 'redirect': '/'})
+        
+        return redirect(url_for('index'))
+    
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        data = request.get_json() if request.is_json else request.form
+        username = data.get('username')
+        password = data.get('password')
+        
+        user = User.query.filter(
+            (User.username == username) | (User.email == username)
+        ).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            if request.is_json:
+                return jsonify({'success': True, 'redirect': '/'})
+            return redirect(url_for('index'))
+        
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
+        flash('Invalid username/email or password')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# --- Main Routes ---
+@app.route('/')
+@login_required
+def index():
+    return render_template('index.html', user=current_user)
 
 @app.route('/api/test_api_key', methods=['POST'])
+@login_required
 def test_api_key():
     """Test if the provided API key is valid"""
     data = request.json
@@ -232,495 +324,434 @@ def test_api_key():
         print(f"API key test failed: {error_message}")
         return jsonify({'success': False, 'error': error_message})
 
+# --- API Routes ---
 @app.route('/api/attributes')
+@login_required
 def api_get_attributes():
-    conn = get_db()
-    cursor = conn.cursor()
+    attributes = Attribute.query.filter_by(user_id=current_user.id).order_by(Attribute.name).all()
     
-    cursor.execute("SELECT attribute_id, name, current_xp FROM attributes ORDER BY name")
-    attributes = []
-    
-    for row in cursor.fetchall():
-        attr_id, name, xp = row
-        level = calculate_level_from_exp(xp)
-        
-        # Calculate progress
+    attributes_data = []
+    for attr in attributes:
+        level = calculate_level_from_exp(attr.current_xp)
         current_level_xp = calculate_exp_for_level(level)
         next_level_xp = calculate_exp_for_level(level + 1)
-        xp_progress = xp - current_level_xp
+        xp_progress = attr.current_xp - current_level_xp
         xp_needed = next_level_xp - current_level_xp
         progress_percent = (xp_progress / xp_needed * 100) if xp_needed > 0 else 100
         
         # Get subskills
-        cursor.execute("SELECT subskill_id, name, current_xp FROM subskills WHERE attribute_id = ?", (attr_id,))
-        subskills = []
-        for sub_row in cursor.fetchall():
-            sub_id, sub_name, sub_xp = sub_row
-            sub_level = calculate_level_from_exp(sub_xp)
+        subskills_data = []
+        for subskill in attr.subskills:
+            sub_level = calculate_level_from_exp(subskill.current_xp)
             sub_current_level_xp = calculate_exp_for_level(sub_level)
             sub_next_level_xp = calculate_exp_for_level(sub_level + 1)
-            sub_xp_progress = sub_xp - sub_current_level_xp
+            sub_xp_progress = subskill.current_xp - sub_current_level_xp
             sub_xp_needed = sub_next_level_xp - sub_current_level_xp
             sub_progress_percent = (sub_xp_progress / sub_xp_needed * 100) if sub_xp_needed > 0 else 100
             
-            subskills.append({
-                'id': sub_id,
-                'name': sub_name,
+            subskills_data.append({
+                'id': subskill.subskill_id,
+                'name': subskill.name,
                 'level': sub_level,
-                'total_xp': sub_xp,
+                'total_xp': subskill.current_xp,
                 'xp_progress': sub_xp_progress,
                 'xp_needed': sub_xp_needed,
                 'progress_percent': sub_progress_percent
             })
         
-        attributes.append({
-            'id': attr_id,
-            'name': name,
+        attributes_data.append({
+            'id': attr.attribute_id,
+            'name': attr.name,
             'level': level,
-            'total_xp': xp,
+            'total_xp': attr.current_xp,
             'xp_progress': xp_progress,
             'xp_needed': xp_needed,
             'progress_percent': progress_percent,
-            'subskills': subskills
+            'subskills': subskills_data
         })
     
-    conn.close()
-    return jsonify(attributes)
+    return jsonify(attributes_data)
 
 @app.route('/api/tasks')
+@login_required
 def api_get_tasks():
     date = request.args.get('date', datetime.date.today().isoformat())
-    conn = get_db()
-    cursor = conn.cursor()
     
     # Process recurring tasks for this date
-    cursor.execute("""
-        SELECT recurring_task_id, description, attribute_id, subskill_id, 
-               xp_value, stress_effect, is_negative_habit
-        FROM recurring_tasks 
-        WHERE is_active = 1 AND start_date <= ?
-    """, (date,))
+    recurring_tasks = RecurringTask.query.filter_by(
+        user_id=current_user.id, 
+        is_active=True
+    ).filter(RecurringTask.start_date <= date).all()
     
-    for row in cursor.fetchall():
-        rt_id, desc, attr_id, sub_id, xp, stress, is_neg = row
-        
+    for rt in recurring_tasks:
         # Check if already added for this date
-        cursor.execute("SELECT task_id FROM tasks WHERE date = ? AND description = ?", (date, desc))
-        if not cursor.fetchone():
-            cursor.execute("""
-                INSERT INTO tasks (date, description, task_type, attribute_id, subskill_id,
-                                 xp_gained, stress_effect, is_negative_habit)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (date, desc, 'recurring', attr_id, sub_id, xp, stress, is_neg))
+        existing_task = Task.query.filter_by(
+            user_id=current_user.id,
+            date=date,
+            description=rt.description
+        ).first()
+        
+        if not existing_task:
+            task = Task(
+                user_id=current_user.id,
+                date=date,
+                description=rt.description,
+                task_type='recurring',
+                attribute_id=rt.attribute_id,
+                subskill_id=rt.subskill_id,
+                xp_gained=rt.xp_value,
+                stress_effect=rt.stress_effect,
+                is_negative_habit=rt.is_negative_habit
+            )
+            db.session.add(task)
     
-    conn.commit()
+    db.session.commit()
     
     # Get tasks for the date
-    cursor.execute("""
-        SELECT t.task_id, t.description, t.task_type, t.is_completed, t.is_skipped,
-               a.name as attribute_name, s.name as subskill_name,
-               t.xp_gained, t.stress_effect, t.is_negative_habit
-        FROM tasks t
-        LEFT JOIN attributes a ON t.attribute_id = a.attribute_id
-        LEFT JOIN subskills s ON t.subskill_id = s.subskill_id
-        WHERE t.date = ?
-        ORDER BY t.is_completed, t.is_skipped, t.task_id DESC
-    """, (date,))
+    tasks = Task.query.filter_by(user_id=current_user.id, date=date).order_by(
+        Task.is_completed, Task.is_skipped, Task.task_id.desc()
+    ).all()
     
-    tasks = []
-    for row in cursor.fetchall():
-        tasks.append({
-            'id': row[0],
-            'description': row[1],
-            'type': row[2],
-            'completed': bool(row[3]),
-            'skipped': bool(row[4]),
-            'attribute': row[5],
-            'subskill': row[6],
-            'xp': row[7],
-            'stress_effect': row[8],
-            'is_negative_habit': bool(row[9])
+    tasks_data = []
+    for task in tasks:
+        tasks_data.append({
+            'id': task.task_id,
+            'description': task.description,
+            'type': task.task_type,
+            'completed': task.is_completed,
+            'skipped': task.is_skipped,
+            'attribute': task.attribute.name if task.attribute else None,
+            'subskill': task.subskill.name if task.subskill else None,
+            'xp': task.xp_gained,
+            'stress_effect': task.stress_effect,
+            'is_negative_habit': task.is_negative_habit
         })
     
-    conn.close()
-    return jsonify(tasks)
+    return jsonify(tasks_data)
 
 @app.route('/api/add_task', methods=['POST'])
+@login_required
 def api_add_task():
     data = request.json
-    conn = get_db()
-    cursor = conn.cursor()
     
-    # Get attribute and subskill IDs
-    attr_id = None
-    sub_id = None
+    # Get attribute and subskill
+    attribute = None
+    subskill = None
     
     if data.get('attribute'):
-        cursor.execute("SELECT attribute_id FROM attributes WHERE name = ?", (data['attribute'],))
-        result = cursor.fetchone()
-        if result:
-            attr_id = result[0]
-            
-            if data.get('subskill'):
-                cursor.execute("SELECT subskill_id FROM subskills WHERE attribute_id = ? AND name = ?",
-                             (attr_id, data['subskill']))
-                result = cursor.fetchone()
-                if result:
-                    sub_id = result[0]
+        attribute = Attribute.query.filter_by(
+            user_id=current_user.id, 
+            name=data['attribute']
+        ).first()
+        
+        if attribute and data.get('subskill'):
+            subskill = Subskill.query.filter_by(
+                attribute_id=attribute.attribute_id,
+                name=data['subskill']
+            ).first()
     
     # Calculate XP based on difficulty
     xp = 0 if data.get('is_negative_habit') else TASK_DIFFICULTIES.get(data.get('difficulty', 'medium'), 25)
     
-    cursor.execute("""
-        INSERT INTO tasks (date, description, task_type, attribute_id, subskill_id,
-                         xp_gained, stress_effect, is_negative_habit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data.get('date', datetime.date.today().isoformat()),
-        data['description'],
-        data.get('type', 'general'),
-        attr_id,
-        sub_id,
-        xp,
-        int(data.get('stress_effect', 0)),
-        data.get('is_negative_habit', False)
-    ))
+    task = Task(
+        user_id=current_user.id,
+        date=data.get('date', datetime.date.today().isoformat()),
+        description=data['description'],
+        task_type=data.get('type', 'general'),
+        attribute_id=attribute.attribute_id if attribute else None,
+        subskill_id=subskill.subskill_id if subskill else None,
+        xp_gained=xp,
+        stress_effect=int(data.get('stress_effect', 0)),
+        is_negative_habit=data.get('is_negative_habit', False)
+    )
     
-    conn.commit()
-    task_id = cursor.lastrowid
-    conn.close()
+    db.session.add(task)
+    db.session.commit()
     
-    return jsonify({'success': True, 'task_id': task_id})
+    return jsonify({'success': True, 'task_id': task.task_id})
 
 @app.route('/api/complete_task', methods=['POST'])
+@login_required
 def api_complete_task():
     data = request.json
     task_id = data.get('task_id')
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Get task details
-    cursor.execute("""
-        SELECT attribute_id, subskill_id, xp_gained, stress_effect, is_completed, is_negative_habit, date
-        FROM tasks WHERE task_id = ?
-    """, (task_id,))
-    
-    task = cursor.fetchone()
+    task = Task.query.filter_by(task_id=task_id, user_id=current_user.id).first()
     if not task:
-        conn.close()
         return jsonify({'success': False, 'error': 'Task not found'})
     
-    if task[4]:  # Already completed
-        conn.close()
+    if task.is_completed:
         return jsonify({'success': False, 'error': 'Task already completed'})
     
     # Mark as completed
-    cursor.execute("UPDATE tasks SET is_completed = 1 WHERE task_id = ?", (task_id,))
+    task.is_completed = True
     
     # Update XP if not negative habit
-    if not task[5] and task[2] > 0:
-        if task[0]:  # Has attribute
-            cursor.execute("UPDATE attributes SET current_xp = current_xp + ? WHERE attribute_id = ?",
-                         (task[2], task[0]))
+    if not task.is_negative_habit and task.xp_gained > 0:
+        if task.attribute:
+            task.attribute.current_xp += task.xp_gained
             
             # Check for level up milestone
-            cursor.execute("SELECT current_xp FROM attributes WHERE attribute_id = ?", (task[0],))
-            new_xp = cursor.fetchone()[0]
-            new_level = calculate_level_from_exp(new_xp)
-            old_level = calculate_level_from_exp(new_xp - task[2])
+            new_level = calculate_level_from_exp(task.attribute.current_xp)
+            old_level = calculate_level_from_exp(task.attribute.current_xp - task.xp_gained)
             
             if new_level > old_level:
-                cursor.execute("SELECT name FROM attributes WHERE attribute_id = ?", (task[0],))
-                attr_name = cursor.fetchone()[0]
-                cursor.execute("""
-                    INSERT INTO milestones (date, title, description, attribute_id, achievement_type)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (task[6], f"Level Up: {attr_name}", f"Reached level {new_level} in {attr_name}!", task[0], 'level_up'))
-                
-        if task[1]:  # Has subskill
-            cursor.execute("UPDATE subskills SET current_xp = current_xp + ? WHERE subskill_id = ?",
-                         (task[2], task[1]))
+                milestone = Milestone(
+                    user_id=current_user.id,
+                    date=task.date,
+                    title=f"Level Up: {task.attribute.name}",
+                    description=f"Reached level {new_level} in {task.attribute.name}!",
+                    attribute_id=task.attribute_id,
+                    achievement_type='level_up'
+                )
+                db.session.add(milestone)
+        
+        if task.subskill:
+            task.subskill.current_xp += task.xp_gained
     
     # Update stress
-    if task[3] != 0:
-        cursor.execute("UPDATE character_stats SET value = MAX(0, value + ?) WHERE stat_name = 'Stress'",
-                     (task[3],))
+    if task.stress_effect != 0:
+        stress_stat = CharacterStat.query.filter_by(
+            user_id=current_user.id, 
+            stat_name='Stress'
+        ).first()
+        if stress_stat:
+            stress_stat.value = max(0, stress_stat.value + task.stress_effect)
     
     # Update daily stats
     today = datetime.date.today().isoformat()
-    cursor.execute("INSERT OR IGNORE INTO daily_stats (date) VALUES (?)", (today,))
-    cursor.execute("""
-        UPDATE daily_stats 
-        SET tasks_completed = tasks_completed + 1,
-            total_xp_gained = total_xp_gained + ?
-        WHERE date = ?
-    """, (task[2] if not task[5] else 0, today))
+    daily_stat = DailyStat.query.filter_by(user_id=current_user.id, date=today).first()
+    if not daily_stat:
+        daily_stat = DailyStat(user_id=current_user.id, date=today)
+        db.session.add(daily_stat)
     
-    conn.commit()
-    conn.close()
+    daily_stat.tasks_completed += 1
+    if not task.is_negative_habit:
+        daily_stat.total_xp_gained += task.xp_gained
     
+    db.session.commit()
     return jsonify({'success': True})
 
 @app.route('/api/complete_negative_habit', methods=['POST'])
+@login_required
 def api_complete_negative_habit():
     data = request.json
     task_id = data.get('task_id')
-    did_negative = data.get('did_negative')  # True for "Yes", False for "No"
+    did_negative = data.get('did_negative')
     
-    conn = get_db()
-    cursor = conn.cursor()
+    task = Task.query.filter_by(task_id=task_id, user_id=current_user.id).first()
+    if not task or not task.is_negative_habit:
+        return jsonify({'success': False, 'error': 'Invalid task'})
     
-    # Get task details
-    cursor.execute("""
-        SELECT attribute_id, subskill_id, xp_gained, stress_effect, is_completed, is_negative_habit, date
-        FROM tasks WHERE task_id = ?
-    """, (task_id,))
-    
-    task = cursor.fetchone()
-    if not task:
-        conn.close()
-        return jsonify({'success': False, 'error': 'Task not found'})
-    
-    if task[4]:  # Already completed
-        conn.close()
+    if task.is_completed:
         return jsonify({'success': False, 'error': 'Task already completed'})
     
-    if not task[5]:  # Not a negative habit
-        conn.close()
-        return jsonify({'success': False, 'error': 'Not a negative habit'})
-    
-    # Mark as completed
-    cursor.execute("UPDATE tasks SET is_completed = 1 WHERE task_id = ?", (task_id,))
+    task.is_completed = True
     
     if did_negative:
         # Did the negative habit - apply stress
-        if task[3] != 0:
-            cursor.execute("UPDATE character_stats SET value = MAX(0, value + ?) WHERE stat_name = 'Stress'",
-                         (abs(task[3]),))  # Make stress positive for negative habits
+        if task.stress_effect != 0:
+            stress_stat = CharacterStat.query.filter_by(
+                user_id=current_user.id, 
+                stat_name='Stress'
+            ).first()
+            if stress_stat:
+                stress_stat.value = max(0, stress_stat.value + abs(task.stress_effect))
     else:
         # Avoided the negative habit - give reward
-        reward_xp = task[2] or 25  # Use the XP value or default
-        if task[0]:  # Has attribute
-            cursor.execute("UPDATE attributes SET current_xp = current_xp + ? WHERE attribute_id = ?",
-                         (reward_xp, task[0]))
-        if task[1]:  # Has subskill
-            cursor.execute("UPDATE subskills SET current_xp = current_xp + ? WHERE subskill_id = ?",
-                         (reward_xp, task[1]))
+        reward_xp = task.xp_gained or 25
+        if task.attribute:
+            task.attribute.current_xp += reward_xp
+        if task.subskill:
+            task.subskill.current_xp += reward_xp
         
         # Reduce stress for avoiding negative habit
-        cursor.execute("UPDATE character_stats SET value = MAX(0, value - 5) WHERE stat_name = 'Stress'")
+        stress_stat = CharacterStat.query.filter_by(
+            user_id=current_user.id, 
+            stat_name='Stress'
+        ).first()
+        if stress_stat:
+            stress_stat.value = max(0, stress_stat.value - 5)
     
     # Update daily stats
     today = datetime.date.today().isoformat()
-    cursor.execute("INSERT OR IGNORE INTO daily_stats (date) VALUES (?)", (today,))
+    daily_stat = DailyStat.query.filter_by(user_id=current_user.id, date=today).first()
+    if not daily_stat:
+        daily_stat = DailyStat(user_id=current_user.id, date=today)
+        db.session.add(daily_stat)
     
-    if did_negative:
-        # Count as negative habit completed
-        cursor.execute("""
-            UPDATE daily_stats 
-            SET tasks_completed = tasks_completed + 1
-            WHERE date = ?
-        """, (today,))
-    else:
-        # Count as positive completion with XP
-        reward_xp = task[2] or 25
-        cursor.execute("""
-            UPDATE daily_stats 
-            SET tasks_completed = tasks_completed + 1,
-                total_xp_gained = total_xp_gained + ?
-            WHERE date = ?
-        """, (reward_xp, today))
+    daily_stat.tasks_completed += 1
+    if not did_negative:
+        daily_stat.total_xp_gained += (task.xp_gained or 25)
     
-    conn.commit()
-    conn.close()
-    
+    db.session.commit()
     return jsonify({'success': True, 'did_negative': did_negative})
 
 @app.route('/api/skip_task', methods=['POST'])
+@login_required
 def api_skip_task():
     data = request.json
     task_id = data.get('task_id')
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Get task details
-    cursor.execute("""
-        SELECT is_completed, is_skipped, is_negative_habit
-        FROM tasks WHERE task_id = ?
-    """, (task_id,))
-    
-    task = cursor.fetchone()
+    task = Task.query.filter_by(task_id=task_id, user_id=current_user.id).first()
     if not task:
-        conn.close()
         return jsonify({'success': False, 'error': 'Task not found'})
     
-    if task[0] or task[1]:  # Already completed or skipped
-        conn.close()
+    if task.is_completed or task.is_skipped:
         return jsonify({'success': False, 'error': 'Task already completed or skipped'})
     
-    # Mark as skipped
-    cursor.execute("UPDATE tasks SET is_skipped = 1 WHERE task_id = ?", (task_id,))
-    
-    conn.commit()
-    conn.close()
+    task.is_skipped = True
+    db.session.commit()
     
     return jsonify({'success': True})
 
 @app.route('/api/delete_task', methods=['POST'])
+@login_required
 def api_delete_task():
     data = request.json
     task_id = data.get('task_id')
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Get task details first
-    cursor.execute("""
-        SELECT attribute_id, subskill_id, xp_gained, is_completed, is_negative_habit
-        FROM tasks WHERE task_id = ?
-    """, (task_id,))
-    
-    task = cursor.fetchone()
+    task = Task.query.filter_by(task_id=task_id, user_id=current_user.id).first()
     if not task:
-        conn.close()
         return jsonify({'success': False, 'error': 'Task not found'})
     
     # If completed and gave XP, subtract it back
-    if task[3] and not task[4] and task[2] > 0:  # was completed, not negative, had XP
-        if task[0]:  # Has attribute
-            cursor.execute("UPDATE attributes SET current_xp = MAX(0, current_xp - ?) WHERE attribute_id = ?",
-                         (task[2], task[0]))
-        if task[1]:  # Has subskill
-            cursor.execute("UPDATE subskills SET current_xp = MAX(0, current_xp - ?) WHERE subskill_id = ?",
-                         (task[2], task[1]))
+    if task.is_completed and not task.is_negative_habit and task.xp_gained > 0:
+        if task.attribute:
+            task.attribute.current_xp = max(0, task.attribute.current_xp - task.xp_gained)
+        if task.subskill:
+            task.subskill.current_xp = max(0, task.subskill.current_xp - task.xp_gained)
     
-    # Delete the task
-    cursor.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
-    
-    conn.commit()
-    conn.close()
+    db.session.delete(task)
+    db.session.commit()
     
     return jsonify({'success': True})
 
 @app.route('/api/stats')
+@login_required
 def api_get_stats():
-    conn = get_db()
-    cursor = conn.cursor()
-    
     stats = {}
     
     # Get character stats
-    cursor.execute("SELECT stat_name, value FROM character_stats")
-    for row in cursor.fetchall():
-        stats[row[0]] = row[1]
+    character_stats = CharacterStat.query.filter_by(user_id=current_user.id).all()
+    for stat in character_stats:
+        stats[stat.stat_name] = stat.value
     
     # Get total completed tasks
-    cursor.execute("SELECT COUNT(*) FROM tasks WHERE is_completed = 1")
-    stats['Total Tasks Completed'] = cursor.fetchone()[0]
+    stats['Total Tasks Completed'] = Task.query.filter_by(
+        user_id=current_user.id, 
+        is_completed=True
+    ).count()
     
     # Get negative habits completed
-    cursor.execute("SELECT COUNT(*) FROM tasks WHERE is_completed = 1 AND is_negative_habit = 1")
-    stats['Negative Habits Completed'] = cursor.fetchone()[0]
+    stats['Negative Habits Completed'] = Task.query.filter_by(
+        user_id=current_user.id, 
+        is_completed=True, 
+        is_negative_habit=True
+    ).count()
     
     # Get skipped tasks for today
     today = datetime.date.today().isoformat()
-    cursor.execute("SELECT COUNT(*) FROM tasks WHERE date = ? AND is_skipped = 1", (today,))
-    stats['Tasks Skipped Today'] = cursor.fetchone()[0]
+    stats['Tasks Skipped Today'] = Task.query.filter_by(
+        user_id=current_user.id, 
+        date=today, 
+        is_skipped=True
+    ).count()
     
     # Get incomplete tasks for today
-    cursor.execute("SELECT COUNT(*) FROM tasks WHERE date = ? AND is_completed = 0 AND is_skipped = 0", (today,))
-    stats['Tasks Remaining Today'] = cursor.fetchone()[0]
+    stats['Tasks Remaining Today'] = Task.query.filter_by(
+        user_id=current_user.id, 
+        date=today, 
+        is_completed=False, 
+        is_skipped=False
+    ).count()
     
     # Get total XP
-    cursor.execute("SELECT SUM(current_xp) FROM attributes")
-    stats['Total XP'] = cursor.fetchone()[0] or 0
+    total_xp = db.session.query(db.func.sum(Attribute.current_xp)).filter_by(user_id=current_user.id).scalar()
+    stats['Total XP'] = total_xp or 0
     
-    # Get active/completed quest counts
-    cursor.execute("SELECT COUNT(*) FROM quests WHERE status = 'Active'")
-    stats['Active Quests'] = cursor.fetchone()[0]
+    # Get quest counts
+    stats['Active Quests'] = Quest.query.filter_by(
+        user_id=current_user.id, 
+        status='Active'
+    ).count()
     
-    cursor.execute("SELECT COUNT(*) FROM quests WHERE status = 'Completed'")
-    stats['Completed Quests'] = cursor.fetchone()[0]
+    stats['Completed Quests'] = Quest.query.filter_by(
+        user_id=current_user.id, 
+        status='Completed'
+    ).count()
     
-    conn.close()
     return jsonify(stats)
 
 @app.route('/api/milestones')
+@login_required
 def api_get_milestones():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 5, type=int)
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
     # Get total count
-    cursor.execute("SELECT COUNT(*) FROM milestones")
-    total = cursor.fetchone()[0]
+    total = Milestone.query.filter_by(user_id=current_user.id).count()
     
     # Get paginated milestones
-    offset = (page - 1) * per_page
-    cursor.execute("""
-        SELECT m.milestone_id, m.date, m.title, m.description, m.achievement_type, a.name
-        FROM milestones m
-        LEFT JOIN attributes a ON m.attribute_id = a.attribute_id
-        ORDER BY m.date DESC, m.milestone_id DESC
-        LIMIT ? OFFSET ?
-    """, (per_page, offset))
+    milestones = Milestone.query.filter_by(user_id=current_user.id).order_by(
+        Milestone.date.desc(), Milestone.milestone_id.desc()
+    ).paginate(page=page, per_page=per_page, error_out=False)
     
-    milestones = []
-    for row in cursor.fetchall():
-        milestones.append({
-            'id': row[0],
-            'date': row[1],
-            'title': row[2],
-            'description': row[3],
-            'type': row[4],
-            'attribute': row[5]
+    milestones_data = []
+    for milestone in milestones.items:
+        milestones_data.append({
+            'id': milestone.milestone_id,
+            'date': milestone.date,
+            'title': milestone.title,
+            'description': milestone.description,
+            'type': milestone.achievement_type,
+            'attribute': milestone.attribute.name if milestone.attribute else None
         })
     
-    conn.close()
-    
     return jsonify({
-        'milestones': milestones,
+        'milestones': milestones_data,
         'current_page': page,
-        'pages': math.ceil(total / per_page),
+        'pages': milestones.pages,
         'total': total
     })
 
 @app.route('/api/delete_milestone', methods=['POST'])
+@login_required
 def api_delete_milestone():
     data = request.json
     milestone_id = data.get('milestone_id')
     
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM milestones WHERE milestone_id = ?", (milestone_id,))
-    success = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+    milestone = Milestone.query.filter_by(
+        milestone_id=milestone_id, 
+        user_id=current_user.id
+    ).first()
     
-    return jsonify({'success': success})
+    if milestone:
+        db.session.delete(milestone)
+        db.session.commit()
+        return jsonify({'success': True})
+    
+    return jsonify({'success': False, 'error': 'Milestone not found'})
 
 @app.route('/api/narrative')
+@login_required
 def api_get_narrative():
     date = request.args.get('date', datetime.date.today().isoformat())
     
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT narrative FROM daily_narratives WHERE date = ?", (date,))
-    result = cursor.fetchone()
-    conn.close()
+    narrative = DailyNarrative.query.filter_by(
+        user_id=current_user.id, 
+        date=date
+    ).first()
     
-    narrative = result[0] if result else "No adventure recorded for this day yet..."
+    narrative_text = narrative.narrative if narrative else "No adventure recorded for this day yet..."
     
     return jsonify({
         'date': date,
-        'narrative': narrative
+        'narrative': narrative_text
     })
 
 @app.route('/api/generate_narrative', methods=['POST'])
+@login_required
 def api_generate_narrative():
     data = request.json
     api_key = data.get('api_key')
@@ -729,81 +760,79 @@ def api_generate_narrative():
     if not api_key:
         return jsonify({'error': 'API key required'}), 400
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
     # Get completed tasks for context
-    cursor.execute("""
-        SELECT t.description, a.name 
-        FROM tasks t
-        LEFT JOIN attributes a ON t.attribute_id = a.attribute_id
-        WHERE t.date = ? AND t.is_completed = 1 AND t.is_negative_habit = 0
-    """, (date,))
-    
-    completed_tasks = cursor.fetchall()
+    completed_tasks = Task.query.filter_by(
+        user_id=current_user.id,
+        date=date,
+        is_completed=True,
+        is_negative_habit=False
+    ).all()
     
     # Generate narrative
     if completed_tasks:
-        task_summary = ", ".join([f"{task[0]} ({task[1] or 'General'})" for task in completed_tasks])
+        task_list = [f"{task.description} ({task.attribute.name if task.attribute else 'General'})" for task in completed_tasks]
+        task_summary = ", ".join(task_list)
         prompt = f"Write a short, epic D&D-style narrative (150 words max) about an adventurer who accomplished: {task_summary}. Make it motivational and heroic."
     else:
         prompt = f"Write a short D&D-style narrative (150 words max) about a day of rest and preparation for an adventurer. Make it contemplative but hopeful."
     
-    narrative = generate_ai_response(prompt, 
-                                   "You are a D&D dungeon master creating daily adventure narratives.",
-                                   api_key)
+    narrative_text = generate_ai_response(prompt, 
+                                       "You are a D&D dungeon master creating daily adventure narratives.",
+                                       api_key)
     
     # Save narrative
-    cursor.execute("INSERT OR REPLACE INTO daily_narratives (date, narrative) VALUES (?, ?)",
-                  (date, narrative))
-    conn.commit()
-    conn.close()
+    existing_narrative = DailyNarrative.query.filter_by(
+        user_id=current_user.id, 
+        date=date
+    ).first()
     
-    return jsonify({'narrative': narrative, 'date': date})
+    if existing_narrative:
+        existing_narrative.narrative = narrative_text
+    else:
+        new_narrative = DailyNarrative(
+            user_id=current_user.id,
+            date=date,
+            narrative=narrative_text
+        )
+        db.session.add(new_narrative)
+    
+    db.session.commit()
+    
+    return jsonify({'narrative': narrative_text, 'date': date})
 
 @app.route('/api/narratives')
+@login_required
 def api_get_narratives():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 3, type=int)
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
     # Get total count
-    cursor.execute("SELECT COUNT(*) FROM daily_narratives")
-    total = cursor.fetchone()[0]
+    total = DailyNarrative.query.filter_by(user_id=current_user.id).count()
     
     # Get paginated narratives
-    offset = (page - 1) * per_page
-    cursor.execute("""
-        SELECT date, narrative FROM daily_narratives
-        ORDER BY date DESC
-        LIMIT ? OFFSET ?
-    """, (per_page, offset))
+    narratives = DailyNarrative.query.filter_by(user_id=current_user.id).order_by(
+        DailyNarrative.date.desc()
+    ).paginate(page=page, per_page=per_page, error_out=False)
     
-    narratives = []
-    for row in cursor.fetchall():
-        narratives.append({
-            'date': row[0],
-            'narrative': row[1]
+    narratives_data = []
+    for narrative in narratives.items:
+        narratives_data.append({
+            'date': narrative.date,
+            'narrative': narrative.narrative
         })
     
-    conn.close()
-    
     return jsonify({
-        'narratives': narratives,
+        'narratives': narratives_data,
         'current_page': page,
-        'pages': math.ceil(total / per_page),
+        'pages': narratives.pages,
         'total': total
     })
 
 @app.route('/api/heatmap')
+@login_required
 def api_get_heatmap():
     year = request.args.get('year', datetime.date.today().year, type=int)
     month = request.args.get('month', datetime.date.today().month, type=int)
-    
-    conn = get_db()
-    cursor = conn.cursor()
     
     # Get daily stats for the month
     start_date = f"{year}-{month:02d}-01"
@@ -812,38 +841,32 @@ def api_get_heatmap():
     else:
         end_date = f"{year}-{month + 1:02d}-01"
     
-    cursor.execute("""
-        SELECT date, COALESCE(tasks_completed, 0), COALESCE(total_xp_gained, 0)
-        FROM daily_stats
-        WHERE date >= ? AND date < ?
-        ORDER BY date
-    """, (start_date, end_date))
+    daily_stats = DailyStat.query.filter_by(user_id=current_user.id).filter(
+        DailyStat.date >= start_date,
+        DailyStat.date < end_date
+    ).all()
     
     data = []
-    for row in cursor.fetchall():
+    for stat in daily_stats:
         data.append({
-            'date': row[0],
-            'count': row[1],
-            'xp': row[2]
+            'date': stat.date,
+            'count': stat.tasks_completed,
+            'xp': stat.total_xp_gained
         })
     
-    conn.close()
     return jsonify(data)
 
 @app.route('/api/attribute_history')
+@login_required
 def api_get_attribute_history():
     days = request.args.get('days', 30, type=int)
-    
-    conn = get_db()
-    cursor = conn.cursor()
     
     # Get date range
     end_date = datetime.date.today()
     start_date = end_date - datetime.timedelta(days=days)
     
-    # Get attributes
-    cursor.execute("SELECT attribute_id, name FROM attributes ORDER BY name")
-    attributes = cursor.fetchall()
+    # Get user's attributes
+    user_attributes = Attribute.query.filter_by(user_id=current_user.id).all()
     
     # Build date list
     dates = []
@@ -858,128 +881,114 @@ def api_get_attribute_history():
         'attributes': {}
     }
     
-    for attr_id, attr_name in attributes:
+    for attribute in user_attributes:
         levels = []
         running_xp = 0
         
         for date_str in dates:
             # Get XP gained on this date for this attribute
-            cursor.execute("""
-                SELECT SUM(xp_gained) FROM tasks 
-                WHERE attribute_id = ? AND date = ? AND is_completed = 1 AND is_negative_habit = 0
-            """, (attr_id, date_str))
+            daily_xp = db.session.query(db.func.sum(Task.xp_gained)).filter_by(
+                user_id=current_user.id,
+                attribute_id=attribute.attribute_id,
+                date=date_str,
+                is_completed=True,
+                is_negative_habit=False
+            ).scalar() or 0
             
-            daily_xp = cursor.fetchone()[0] or 0
             running_xp += daily_xp
             levels.append(calculate_level_from_exp(running_xp))
         
-        result['attributes'][attr_name] = levels
+        result['attributes'][attribute.name] = levels
     
-    conn.close()
     return jsonify(result)
 
 @app.route('/api/quests')
+@login_required
 def api_get_quests():
-    conn = get_db()
-    cursor = conn.cursor()
+    quests = Quest.query.filter_by(user_id=current_user.id).order_by(
+        (Quest.status == 'Active').desc(),
+        Quest.due_date.asc(),
+        Quest.start_date.desc()
+    ).all()
     
-    cursor.execute("""
-        SELECT quest_id, title, description, difficulty, xp_reward, 
-               attribute_focus, start_date, due_date, completed_date, status
-        FROM quests
-        ORDER BY status = 'Active' DESC, due_date ASC
-    """)
-    
-    quests = []
-    for row in cursor.fetchall():
-        quests.append({
-            'id': row[0],
-            'title': row[1],
-            'description': row[2],
-            'difficulty': row[3],
-            'xp_reward': row[4],
-            'attribute_focus': row[5],
-            'start_date': row[6],
-            'due_date': row[7],
-            'completed_date': row[8],
-            'status': row[9]
+    quests_data = []
+    for quest in quests:
+        quests_data.append({
+            'id': quest.quest_id,
+            'title': quest.title,
+            'description': quest.description,
+            'difficulty': quest.difficulty,
+            'xp_reward': quest.xp_reward,
+            'attribute_focus': quest.attribute_focus,
+            'start_date': quest.start_date,
+            'due_date': quest.due_date,
+            'completed_date': quest.completed_date,
+            'status': quest.status
         })
     
-    conn.close()
-    return jsonify(quests)
+    return jsonify(quests_data)
 
 @app.route('/api/add_quest', methods=['POST'])
+@login_required
 def api_add_quest():
     data = request.json
     
-    conn = get_db()
-    cursor = conn.cursor()
+    quest = Quest(
+        user_id=current_user.id,
+        title=data['title'],
+        description=data.get('description', ''),
+        difficulty=data.get('difficulty', 'Medium'),
+        xp_reward=data.get('xp_reward', 100),
+        attribute_focus=data.get('attribute_focus', ''),
+        start_date=datetime.date.today().isoformat(),
+        due_date=data.get('due_date')
+    )
     
-    cursor.execute("""
-        INSERT INTO quests (title, description, difficulty, xp_reward, attribute_focus, start_date, due_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data['title'],
-        data.get('description', ''),
-        data.get('difficulty', 'Medium'),
-        data.get('xp_reward', 100),
-        data.get('attribute_focus', ''),
-        datetime.date.today().isoformat(),
-        data.get('due_date')
-    ))
+    db.session.add(quest)
+    db.session.commit()
     
-    quest_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'quest_id': quest_id})
+    return jsonify({'success': True, 'quest_id': quest.quest_id})
 
 @app.route('/api/complete_quest', methods=['POST'])
+@login_required
 def api_complete_quest():
     data = request.json
     quest_id = data.get('quest_id')
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Get quest details
-    cursor.execute("""
-        SELECT title, xp_reward, attribute_focus, status
-        FROM quests WHERE quest_id = ?
-    """, (quest_id,))
-    
-    quest = cursor.fetchone()
-    if not quest or quest[3] == 'Completed':
-        conn.close()
+    quest = Quest.query.filter_by(quest_id=quest_id, user_id=current_user.id).first()
+    if not quest or quest.status == 'Completed':
         return jsonify({'success': False, 'error': 'Quest not found or already completed'})
     
     # Mark as completed
     today = datetime.date.today().isoformat()
-    cursor.execute("""
-        UPDATE quests SET status = 'Completed', completed_date = ?
-        WHERE quest_id = ?
-    """, (today, quest_id))
+    quest.status = 'Completed'
+    quest.completed_date = today
     
     # Add XP to attribute if specified
-    if quest[2]:  # attribute_focus
-        cursor.execute("SELECT attribute_id FROM attributes WHERE name = ?", (quest[2],))
-        attr_result = cursor.fetchone()
-        if attr_result:
-            cursor.execute("UPDATE attributes SET current_xp = current_xp + ? WHERE attribute_id = ?",
-                         (quest[1], attr_result[0]))
+    if quest.attribute_focus:
+        attribute = Attribute.query.filter_by(
+            user_id=current_user.id,
+            name=quest.attribute_focus
+        ).first()
+        if attribute:
+            attribute.current_xp += quest.xp_reward
     
     # Add milestone
-    cursor.execute("""
-        INSERT INTO milestones (date, title, description, achievement_type)
-        VALUES (?, ?, ?, ?)
-    """, (today, f"Quest Completed: {quest[0]}", f"Successfully completed the quest '{quest[0]}' and earned {quest[1]} XP!", 'quest'))
+    milestone = Milestone(
+        user_id=current_user.id,
+        date=today,
+        title=f"Quest Completed: {quest.title}",
+        description=f"Successfully completed the quest '{quest.title}' and earned {quest.xp_reward} XP!",
+        achievement_type='quest'
+    )
+    db.session.add(milestone)
     
-    conn.commit()
-    conn.close()
+    db.session.commit()
     
     return jsonify({'success': True})
 
 @app.route('/api/generate_quest', methods=['POST'])
+@login_required
 def api_generate_quest():
     data = request.json
     api_key = data.get('api_key')
@@ -1022,6 +1031,7 @@ def api_generate_quest():
     })
 
 @app.route('/api/enhance_quest_description', methods=['POST'])
+@login_required
 def api_enhance_quest_description():
     data = request.json
     api_key = data.get('api_key')
@@ -1046,147 +1056,123 @@ Make it sound like a heroic medieval quest with fantasy elements. Keep the core 
     return jsonify({'enhanced_description': enhanced})
 
 @app.route('/api/recurring_tasks', methods=['GET'])
+@login_required
 def api_get_recurring_tasks():
-    conn = get_db()
-    cursor = conn.cursor()
+    recurring_tasks = RecurringTask.query.filter_by(user_id=current_user.id).order_by(
+        RecurringTask.is_active.desc(), RecurringTask.description
+    ).all()
     
-    cursor.execute("""
-        SELECT rt.recurring_task_id, rt.description, a.name as attribute_name, 
-               s.name as subskill_name, rt.xp_value, rt.stress_effect, 
-               rt.is_negative_habit, rt.is_active, rt.last_added_date
-        FROM recurring_tasks rt
-        LEFT JOIN attributes a ON rt.attribute_id = a.attribute_id
-        LEFT JOIN subskills s ON rt.subskill_id = s.subskill_id
-        ORDER BY rt.is_active DESC, rt.description
-    """)
-    
-    tasks = []
-    for row in cursor.fetchall():
-        tasks.append({
-            'recurring_task_id': row[0],
-            'description': row[1],
-            'attribute_name': row[2],
-            'subskill_name': row[3],
-            'xp_value': row[4],
-            'stress_effect': row[5],
-            'is_negative_habit': bool(row[6]),
-            'is_active': bool(row[7]),
-            'last_added_date': row[8]
+    tasks_data = []
+    for rt in recurring_tasks:
+        tasks_data.append({
+            'recurring_task_id': rt.recurring_task_id,
+            'description': rt.description,
+            'attribute_name': rt.attribute.name if rt.attribute else None,
+            'subskill_name': rt.subskill.name if rt.subskill else None,
+            'xp_value': rt.xp_value,
+            'stress_effect': rt.stress_effect,
+            'is_negative_habit': rt.is_negative_habit,
+            'is_active': rt.is_active,
+            'last_added_date': rt.last_added_date
         })
     
-    conn.close()
-    return jsonify(tasks)
+    return jsonify(tasks_data)
 
 @app.route('/api/recurring_tasks', methods=['POST'])
+@login_required
 def api_add_recurring_task():
     data = request.json
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    # Get attribute and subskill IDs
-    attr_id = None
-    sub_id = None
-    
+    # Get attribute
+    attribute = None
     if data.get('attribute'):
-        cursor.execute("SELECT attribute_id FROM attributes WHERE name = ?", (data['attribute'],))
-        result = cursor.fetchone()
-        if result:
-            attr_id = result[0]
+        attribute = Attribute.query.filter_by(
+            user_id=current_user.id,
+            name=data['attribute']
+        ).first()
     
     # Calculate XP based on difficulty
     xp = 0 if data.get('is_negative_habit') else TASK_DIFFICULTIES.get(data.get('difficulty', 'medium'), 25)
     
-    cursor.execute("""
-        INSERT INTO recurring_tasks (description, attribute_id, subskill_id, xp_value, 
-                                   stress_effect, is_negative_habit, start_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data['description'],
-        attr_id,
-        sub_id,
-        xp,
-        int(data.get('stress_effect', 0)),
-        data.get('is_negative_habit', False),
-        datetime.date.today().isoformat()
-    ))
+    recurring_task = RecurringTask(
+        user_id=current_user.id,
+        description=data['description'],
+        attribute_id=attribute.attribute_id if attribute else None,
+        xp_value=xp,
+        stress_effect=int(data.get('stress_effect', 0)),
+        is_negative_habit=data.get('is_negative_habit', False),
+        start_date=datetime.date.today().isoformat()
+    )
     
-    rt_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    db.session.add(recurring_task)
+    db.session.commit()
     
-    return jsonify({'success': True, 'recurring_task_id': rt_id})
+    return jsonify({'success': True, 'recurring_task_id': recurring_task.recurring_task_id})
 
 @app.route('/api/recurring_tasks/<int:rt_id>', methods=['DELETE'])
+@login_required
 def api_delete_recurring_task(rt_id):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM recurring_tasks WHERE recurring_task_id = ?", (rt_id,))
-    success = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+    recurring_task = RecurringTask.query.filter_by(
+        recurring_task_id=rt_id,
+        user_id=current_user.id
+    ).first()
     
-    return jsonify({'success': success})
+    if recurring_task:
+        db.session.delete(recurring_task)
+        db.session.commit()
+        return jsonify({'success': True})
+    
+    return jsonify({'success': False, 'error': 'Recurring task not found'})
 
 @app.route('/api/recurring_tasks/<int:rt_id>/toggle_active', methods=['POST'])
+@login_required
 def api_toggle_recurring_task(rt_id):
-    conn = get_db()
-    cursor = conn.cursor()
+    recurring_task = RecurringTask.query.filter_by(
+        recurring_task_id=rt_id,
+        user_id=current_user.id
+    ).first()
     
-    cursor.execute("SELECT is_active FROM recurring_tasks WHERE recurring_task_id = ?", (rt_id,))
-    result = cursor.fetchone()
-    if not result:
-        conn.close()
+    if not recurring_task:
         return jsonify({'success': False, 'error': 'Recurring task not found'})
     
-    new_state = not result[0]
-    cursor.execute("UPDATE recurring_tasks SET is_active = ? WHERE recurring_task_id = ?", 
-                  (new_state, rt_id))
+    recurring_task.is_active = not recurring_task.is_active
+    db.session.commit()
     
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'is_active': new_state})
+    return jsonify({'success': True, 'is_active': recurring_task.is_active})
 
 @app.route('/api/reset_day', methods=['POST'])
+@login_required
 def api_reset_day():
     data = request.json
     date = data.get('date', datetime.date.today().isoformat())
     
-    conn = get_db()
-    cursor = conn.cursor()
-    
     try:
         # Get tasks to be deleted (for XP rollback)
-        cursor.execute("""
-            SELECT attribute_id, subskill_id, xp_gained 
-            FROM tasks 
-            WHERE date = ? AND is_completed = 1 AND is_negative_habit = 0
-        """, (date,))
-        
-        completed_tasks = cursor.fetchall()
+        completed_tasks = Task.query.filter_by(
+            user_id=current_user.id,
+            date=date,
+            is_completed=True,
+            is_negative_habit=False
+        ).all()
         
         # Rollback XP
-        for attr_id, sub_id, xp in completed_tasks:
-            if attr_id and xp > 0:
-                cursor.execute("UPDATE attributes SET current_xp = MAX(0, current_xp - ?) WHERE attribute_id = ?",
-                             (xp, attr_id))
-            if sub_id and xp > 0:
-                cursor.execute("UPDATE subskills SET current_xp = MAX(0, current_xp - ?) WHERE subskill_id = ?",
-                             (xp, sub_id))
+        for task in completed_tasks:
+            if task.attribute and task.xp_gained > 0:
+                task.attribute.current_xp = max(0, task.attribute.current_xp - task.xp_gained)
+            if task.subskill and task.xp_gained > 0:
+                task.subskill.current_xp = max(0, task.subskill.current_xp - task.xp_gained)
         
         # Delete tasks
-        cursor.execute("DELETE FROM tasks WHERE date = ?", (date,))
-        tasks_deleted = cursor.rowcount
+        Task.query.filter_by(user_id=current_user.id, date=date).delete()
+        tasks_deleted = len(completed_tasks)
         
         # Reset daily stats
-        cursor.execute("DELETE FROM daily_stats WHERE date = ?", (date,))
+        DailyStat.query.filter_by(user_id=current_user.id, date=date).delete()
         
         # Delete narrative
-        cursor.execute("DELETE FROM daily_narratives WHERE date = ?", (date,))
+        DailyNarrative.query.filter_by(user_id=current_user.id, date=date).delete()
         
-        conn.commit()
-        conn.close()
+        db.session.commit()
         
         return jsonify({
             'success': True,
@@ -1195,10 +1181,10 @@ def api_reset_day():
         })
         
     except Exception as e:
-        conn.rollback()
-        conn.close()
+        db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    init_db()
+    with app.app_context():
+        db.create_all()
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
