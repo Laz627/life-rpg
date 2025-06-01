@@ -637,7 +637,7 @@ function renderCharacterStats() {
     }
     
     const totalXp = characterStats['Total XP'] || 0;
-    const overallLevel = totalXp < 1000 ? 1 : Math.floor(1 + Math.sqrt((totalXp - 1000) / 750) + 1); 
+    const overallLevel = totalXp <= 0 ? 1 : Math.floor(1 + Math.pow(totalXp / 100, 1/2.2));
     levelDisplay.textContent = `Level ${overallLevel}`;
 
     // Create stats in a specific order
