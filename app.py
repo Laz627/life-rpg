@@ -1,6 +1,6 @@
 import os
 import sqlite3
-import openai
+from openai import OpenAI
 import datetime
 import random
 import time
@@ -172,9 +172,9 @@ def calculate_level_from_exp(exp):
 def generate_ai_response(prompt, system_message, api_key):
     """Generate AI response using user's API key"""
     try:
-        openai.api_key = api_key
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",  # Using cheaper model
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}
@@ -202,16 +202,25 @@ def test_api_key():
     data = request.json
     api_key = data.get('api_key')
     
+    if not api_key:
+        return jsonify({'success': False, 'error': 'No API key provided'})
+    
     try:
-        openai.api_key = api_key
-        response = openai.chat.completions.create(
+        # Create OpenAI client with the provided key
+        client = OpenAI(api_key=api_key)
+        
+        # Make a minimal test request
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "test"}],
+            messages=[{"role": "user", "content": "Hi"}],
             max_tokens=5
         )
+        
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        error_message = str(e)
+        print(f"API key test failed: {error_message}")
+        return jsonify({'success': False, 'error': error_message})
 
 @app.route('/api/attributes')
 def api_get_attributes():
