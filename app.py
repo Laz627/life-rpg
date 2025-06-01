@@ -49,6 +49,8 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    narrative_progress = db.relationship('NarrativeProgress', backref='user', uselist=False, cascade='all, delete-orphan')
+
     
     # Relationships (one-to-many)
     attributes = db.relationship('Attribute', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -59,6 +61,19 @@ class User(UserMixin, db.Model):
     recurring_tasks = db.relationship('RecurringTask', backref='user', lazy=True, cascade='all, delete-orphan')
     daily_stats = db.relationship('DailyStat', backref='user', lazy=True, cascade='all, delete-orphan')
     character_stats = db.relationship('CharacterStat', backref='user', lazy=True, cascade='all, delete-orphan')
+
+class NarrativeProgress(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    current_location = db.Column(db.String(100), default="The Crossroads Inn")
+    main_quest = db.Column(db.Text, default="Seeking your destiny as an adventurer")
+    companions = db.Column(db.Text, default="None yet")
+    recent_events = db.Column(db.Text, default="You've just begun your adventure")
+    story_day = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('user_id'),)
 
 class Attribute(db.Model):
     attribute_id = db.Column(db.Integer, primary_key=True)
@@ -219,6 +234,12 @@ def initialize_user_data(user):
                 current_xp=0
             )
             db.session.add(subskill)
+
+    # Create narrative progress
+    narrative_progress = NarrativeProgress(user_id=user.id)
+    db.session.add(narrative_progress)
+    
+    db.session.commit()
     
     # Create default character stats
     stress_stat = CharacterStat(
@@ -802,25 +823,95 @@ def api_generate_narrative():
     if not api_key:
         return jsonify({'error': 'API key required'}), 400
     
-    # Get completed tasks for context
-    completed_tasks = Task.query.filter_by(
-        user_id=current_user.id,
-        date=date,
-        is_completed=True,
-        is_negative_habit=False
-    ).all()
+    # Get or create narrative progress
+    progress = NarrativeProgress.query.filter_by(user_id=current_user.id).first()
+    if not progress:
+        progress = NarrativeProgress(user_id=current_user.id)
+        db.session.add(progress)
+        db.session.flush()
     
-    # Generate narrative
-    if completed_tasks:
-        task_list = [f"{task.description} ({task.attribute.name if task.attribute else 'General'})" for task in completed_tasks]
-        task_summary = ", ".join(task_list)
-        prompt = f"Write a short, epic D&D-style narrative (150 words max) about an adventurer who accomplished: {task_summary}. Make it motivational and heroic."
+    # Get the last narrative for context
+    last_narrative = DailyNarrative.query.filter_by(user_id=current_user.id).order_by(
+        DailyNarrative.date.desc()
+    ).first()
+    
+    # Build context for the AI
+    context = f"""
+Current Story State:
+- Location: {progress.current_location}
+- Main Quest: {progress.main_quest}
+- Companions: {progress.companions}
+- Recent Events: {progress.recent_events}
+- Story Day: {progress.story_day}
+"""
+    
+    if last_narrative:
+        context += f"\nYesterday's Events: {last_narrative.narrative}"
+    
+    # Create dynamic prompt based on story progression
+    if progress.story_day == 1:
+        story_focus = "Begin the adventure. Introduce the world and a compelling hook."
+    elif progress.story_day <= 7:
+        story_focus = "Early adventure. Establish the main quest and introduce key characters or mysteries."
+    elif progress.story_day <= 30:
+        story_focus = "Mid-adventure. Develop the plot, introduce challenges, allies, or revelations."
     else:
-        prompt = f"Write a short D&D-style narrative (150 words max) about a day of rest and preparation for an adventurer. Make it contemplative but hopeful."
+        story_focus = "Advanced adventure. Build toward climactic moments, major decisions, or epic encounters."
     
-    narrative_text = generate_ai_response(prompt, 
-                                       "You are a D&D dungeon master creating daily adventure narratives.",
-                                       api_key)
+    prompt = f"""Write today's D&D adventure entry for an ongoing epic story. This is Day {progress.story_day}.
+
+{context}
+
+Guidelines:
+- {story_focus}
+- Advance the story meaningfully - no repetition or circular events
+- Include specific details: names, places, discoveries, or encounters
+- Show character growth and world progression
+- Keep it engaging and around 120-150 words
+- End with a subtle hook for tomorrow
+
+At the end, update the story state in this format:
+[LOCATION: new location if changed]
+[QUEST: updated main quest if evolved]
+[COMPANIONS: current companions]
+[EVENTS: summary of today's key events]"""
+    
+    system_message = """You are a master D&D dungeon master creating a continuous, evolving story. Each day should meaningfully advance the narrative. Avoid repetition and ensure real progression. Create memorable moments that build toward something greater."""
+    
+    narrative_text = generate_ai_response(prompt, system_message, api_key)
+    
+    # Parse story updates from the AI response
+    lines = narrative_text.split('\n')
+    story_updates = {}
+    clean_narrative = []
+    
+    for line in lines:
+        if line.startswith('[LOCATION:'):
+            story_updates['location'] = line.replace('[LOCATION:', '').replace(']', '').strip()
+        elif line.startswith('[QUEST:'):
+            story_updates['quest'] = line.replace('[QUEST:', '').replace(']', '').strip()
+        elif line.startswith('[COMPANIONS:'):
+            story_updates['companions'] = line.replace('[COMPANIONS:', '').replace(']', '').strip()
+        elif line.startswith('[EVENTS:'):
+            story_updates['events'] = line.replace('[EVENTS:', '').replace(']', '').strip()
+        else:
+            clean_narrative.append(line)
+    
+    # Clean up the narrative (remove the update markers)
+    final_narrative = '\n'.join(clean_narrative).strip()
+    
+    # Update progress tracking
+    if story_updates.get('location'):
+        progress.current_location = story_updates['location']
+    if story_updates.get('quest'):
+        progress.main_quest = story_updates['quest']
+    if story_updates.get('companions'):
+        progress.companions = story_updates['companions']
+    if story_updates.get('events'):
+        progress.recent_events = story_updates['events']
+    
+    progress.story_day += 1
+    progress.updated_at = datetime.datetime.utcnow()
     
     # Save narrative
     existing_narrative = DailyNarrative.query.filter_by(
@@ -829,18 +920,24 @@ def api_generate_narrative():
     ).first()
     
     if existing_narrative:
-        existing_narrative.narrative = narrative_text
+        existing_narrative.narrative = final_narrative
     else:
         new_narrative = DailyNarrative(
             user_id=current_user.id,
             date=date,
-            narrative=narrative_text
+            narrative=final_narrative
         )
         db.session.add(new_narrative)
     
     db.session.commit()
     
-    return jsonify({'narrative': narrative_text, 'date': date})
+    return jsonify({
+        'narrative': final_narrative, 
+        'date': date,
+        'story_day': progress.story_day - 1,
+        'location': progress.current_location,
+        'quest': progress.main_quest
+    })
 
 @app.route('/api/narratives')
 @login_required
@@ -1085,14 +1182,24 @@ def api_enhance_quest_description():
     if not description:
         return jsonify({'error': 'Description required'}), 400
     
-    prompt = f"""Transform this modern self-improvement goal into an epic fantasy quest description (one sentence, max 20 words):
-    
-Original: "{description}"
+    # More varied and creative prompt
+    prompt = f"""Transform this real-world goal into an epic fantasy quest description. Be creative and avoid generic openings like "Embark on" or "Journey to":
 
-Make it sound like a heroic medieval quest with fantasy elements. Keep the core meaning but make it epic and adventurous."""
+Real Goal: "{description}"
+
+Create a unique, engaging fantasy version that captures the essence but feels like a legendary quest. Use varied language - consider openings like:
+- "Seek the ancient..."
+- "Master the forbidden art of..."
+- "Forge your destiny by..."
+- "Uncover the secrets of..."
+- "Prove your worth through..."
+- "Claim dominion over..."
+- "Break the curse of..."
+
+Keep it to one powerful sentence (15-25 words). Make it sound legendary and personal."""
     
     enhanced = generate_ai_response(prompt,
-                                  "You are a fantasy quest master creating epic medieval quest descriptions.",
+                                  "You are a master storyteller creating unique fantasy quest descriptions. Avoid repetitive language and generic fantasy tropes.",
                                   api_key)
     
     return jsonify({'enhanced_description': enhanced})
@@ -1240,6 +1347,28 @@ def add_negative_habit_column():
         if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
             return "Column already exists - no action needed!"
         return f"Error adding column: {str(e)}"
+
+@app.route('/api/story_progress')
+@login_required
+def api_get_story_progress():
+    """Get current story progression details"""
+    progress = NarrativeProgress.query.filter_by(user_id=current_user.id).first()
+    
+    if not progress:
+        return jsonify({
+            'story_day': 1,
+            'location': 'The Crossroads Inn',
+            'main_quest': 'Seeking your destiny as an adventurer',
+            'companions': 'None yet'
+        })
+    
+    return jsonify({
+        'story_day': progress.story_day,
+        'location': progress.current_location,
+        'main_quest': progress.main_quest,
+        'companions': progress.companions,
+        'recent_events': progress.recent_events
+    })
 
 # Initialize database tables
 with app.app_context():
