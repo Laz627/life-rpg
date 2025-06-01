@@ -41,7 +41,7 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
     
-    # Create all tables with complete schema
+    # Create tables with updated schema
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS attributes (
             attribute_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +61,10 @@ def init_db():
         )
     """)
     
+    # Check if is_skipped column exists, add if not
+    cursor.execute("PRAGMA table_info(tasks)")
+    columns = [column[1] for column in cursor.fetchall()]
+    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             task_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,12 +76,21 @@ def init_db():
             xp_gained INTEGER DEFAULT 0,
             stress_effect INTEGER DEFAULT 0,
             is_completed BOOLEAN DEFAULT 0,
+            is_skipped BOOLEAN DEFAULT 0,
             quantity REAL DEFAULT 1,
             is_negative_habit BOOLEAN DEFAULT 0,
             FOREIGN KEY (attribute_id) REFERENCES attributes(attribute_id),
             FOREIGN KEY (subskill_id) REFERENCES subskills(subskill_id)
         )
     """)
+    
+    # Add is_skipped column if it doesn't exist
+    if 'is_skipped' not in columns:
+        try:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN is_skipped BOOLEAN DEFAULT 0")
+            print("Added is_skipped column to tasks table")
+        except sqlite3.OperationalError as e:
+            print(f"Column might already exist: {e}")
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS daily_stats (
@@ -304,14 +317,14 @@ def api_get_tasks():
     
     # Get tasks for the date
     cursor.execute("""
-        SELECT t.task_id, t.description, t.task_type, t.is_completed, 
+        SELECT t.task_id, t.description, t.task_type, t.is_completed, t.is_skipped,
                a.name as attribute_name, s.name as subskill_name,
                t.xp_gained, t.stress_effect, t.is_negative_habit
         FROM tasks t
         LEFT JOIN attributes a ON t.attribute_id = a.attribute_id
         LEFT JOIN subskills s ON t.subskill_id = s.subskill_id
         WHERE t.date = ?
-        ORDER BY t.is_completed, t.task_id DESC
+        ORDER BY t.is_completed, t.is_skipped, t.task_id DESC
     """, (date,))
     
     tasks = []
@@ -321,11 +334,12 @@ def api_get_tasks():
             'description': row[1],
             'type': row[2],
             'completed': bool(row[3]),
-            'attribute': row[4],
-            'subskill': row[5],
-            'xp': row[6],
-            'stress_effect': row[7],
-            'is_negative_habit': bool(row[8])
+            'skipped': bool(row[4]),
+            'attribute': row[5],
+            'subskill': row[6],
+            'xp': row[7],
+            'stress_effect': row[8],
+            'is_negative_habit': bool(row[9])
         })
     
     conn.close()
@@ -448,6 +462,112 @@ def api_complete_task():
     
     return jsonify({'success': True})
 
+@app.route('/api/complete_negative_habit', methods=['POST'])
+def api_complete_negative_habit():
+    data = request.json
+    task_id = data.get('task_id')
+    did_negative = data.get('did_negative')  # True for "Yes", False for "No"
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Get task details
+    cursor.execute("""
+        SELECT attribute_id, subskill_id, xp_gained, stress_effect, is_completed, is_negative_habit, date
+        FROM tasks WHERE task_id = ?
+    """, (task_id,))
+    
+    task = cursor.fetchone()
+    if not task:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Task not found'})
+    
+    if task[4]:  # Already completed
+        conn.close()
+        return jsonify({'success': False, 'error': 'Task already completed'})
+    
+    if not task[5]:  # Not a negative habit
+        conn.close()
+        return jsonify({'success': False, 'error': 'Not a negative habit'})
+    
+    # Mark as completed
+    cursor.execute("UPDATE tasks SET is_completed = 1 WHERE task_id = ?", (task_id,))
+    
+    if did_negative:
+        # Did the negative habit - apply stress
+        if task[3] != 0:
+            cursor.execute("UPDATE character_stats SET value = MAX(0, value + ?) WHERE stat_name = 'Stress'",
+                         (abs(task[3]),))  # Make stress positive for negative habits
+    else:
+        # Avoided the negative habit - give reward
+        reward_xp = task[2] or 25  # Use the XP value or default
+        if task[0]:  # Has attribute
+            cursor.execute("UPDATE attributes SET current_xp = current_xp + ? WHERE attribute_id = ?",
+                         (reward_xp, task[0]))
+        if task[1]:  # Has subskill
+            cursor.execute("UPDATE subskills SET current_xp = current_xp + ? WHERE subskill_id = ?",
+                         (reward_xp, task[1]))
+        
+        # Reduce stress for avoiding negative habit
+        cursor.execute("UPDATE character_stats SET value = MAX(0, value - 5) WHERE stat_name = 'Stress'")
+    
+    # Update daily stats
+    today = datetime.date.today().isoformat()
+    cursor.execute("INSERT OR IGNORE INTO daily_stats (date) VALUES (?)", (today,))
+    
+    if did_negative:
+        # Count as negative habit completed
+        cursor.execute("""
+            UPDATE daily_stats 
+            SET tasks_completed = tasks_completed + 1
+            WHERE date = ?
+        """, (today,))
+    else:
+        # Count as positive completion with XP
+        reward_xp = task[2] or 25
+        cursor.execute("""
+            UPDATE daily_stats 
+            SET tasks_completed = tasks_completed + 1,
+                total_xp_gained = total_xp_gained + ?
+            WHERE date = ?
+        """, (reward_xp, today))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'did_negative': did_negative})
+
+@app.route('/api/skip_task', methods=['POST'])
+def api_skip_task():
+    data = request.json
+    task_id = data.get('task_id')
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Get task details
+    cursor.execute("""
+        SELECT is_completed, is_skipped, is_negative_habit
+        FROM tasks WHERE task_id = ?
+    """, (task_id,))
+    
+    task = cursor.fetchone()
+    if not task:
+        conn.close()
+        return jsonify({'success': False, 'error': 'Task not found'})
+    
+    if task[0] or task[1]:  # Already completed or skipped
+        conn.close()
+        return jsonify({'success': False, 'error': 'Task already completed or skipped'})
+    
+    # Mark as skipped
+    cursor.execute("UPDATE tasks SET is_skipped = 1 WHERE task_id = ?", (task_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True})
+
 @app.route('/api/delete_task', methods=['POST'])
 def api_delete_task():
     data = request.json
@@ -499,6 +619,19 @@ def api_get_stats():
     # Get total completed tasks
     cursor.execute("SELECT COUNT(*) FROM tasks WHERE is_completed = 1")
     stats['Total Tasks Completed'] = cursor.fetchone()[0]
+    
+    # Get negative habits completed
+    cursor.execute("SELECT COUNT(*) FROM tasks WHERE is_completed = 1 AND is_negative_habit = 1")
+    stats['Negative Habits Completed'] = cursor.fetchone()[0]
+    
+    # Get skipped tasks for today
+    today = datetime.date.today().isoformat()
+    cursor.execute("SELECT COUNT(*) FROM tasks WHERE date = ? AND is_skipped = 1", (today,))
+    stats['Tasks Skipped Today'] = cursor.fetchone()[0]
+    
+    # Get incomplete tasks for today
+    cursor.execute("SELECT COUNT(*) FROM tasks WHERE date = ? AND is_completed = 0 AND is_skipped = 0", (today,))
+    stats['Tasks Remaining Today'] = cursor.fetchone()[0]
     
     # Get total XP
     cursor.execute("SELECT SUM(current_xp) FROM attributes")
@@ -887,6 +1020,30 @@ def api_generate_quest():
         'xp_reward': xp_rewards.get(difficulty, 100),
         'due_date': due_date
     })
+
+@app.route('/api/enhance_quest_description', methods=['POST'])
+def api_enhance_quest_description():
+    data = request.json
+    api_key = data.get('api_key')
+    description = data.get('description')
+    
+    if not api_key:
+        return jsonify({'error': 'API key required'}), 400
+    
+    if not description:
+        return jsonify({'error': 'Description required'}), 400
+    
+    prompt = f"""Transform this modern self-improvement goal into an epic fantasy quest description (one sentence, max 20 words):
+    
+Original: "{description}"
+
+Make it sound like a heroic medieval quest with fantasy elements. Keep the core meaning but make it epic and adventurous."""
+    
+    enhanced = generate_ai_response(prompt,
+                                  "You are a fantasy quest master creating epic medieval quest descriptions.",
+                                  api_key)
+    
+    return jsonify({'enhanced_description': enhanced})
 
 @app.route('/api/recurring_tasks', methods=['GET'])
 def api_get_recurring_tasks():
