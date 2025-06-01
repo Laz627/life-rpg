@@ -29,7 +29,11 @@
     <div class="container">
         <header>
             <h1>⚔️ Life RPG</h1>
-            <div id="character-level" class="character-level-badge">Level 1</div>
+            <div class="header-right">
+                <span class="username">Welcome, {{ user.username }}!</span>
+                <div id="character-level" class="character-level-badge">Level 1</div>
+                <a href="{{ url_for('logout') }}" class="btn-secondary btn-small">Logout</a>
+            </div>
         </header>
 
         <main class="dashboard">
