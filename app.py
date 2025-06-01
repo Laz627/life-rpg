@@ -848,27 +848,32 @@ Current Story State:
     if last_narrative:
         context += f"\nYesterday's Events: {last_narrative.narrative}"
     
-    # Create dynamic prompt based on story progression
-    if progress.story_day == 1:
-        story_focus = "Begin the adventure. Introduce the world and a compelling hook."
-    elif progress.story_day <= 7:
-        story_focus = "Early adventure. Establish the main quest and introduce key characters or mysteries."
-    elif progress.story_day <= 30:
-        story_focus = "Mid-adventure. Develop the plot, introduce challenges, allies, or revelations."
-    else:
-        story_focus = "Advanced adventure. Build toward climactic moments, major decisions, or epic encounters."
+    # Get story progression info
+    story_info = get_story_phase_and_focus(progress.story_day)
     
-    prompt = f"""Write today's D&D adventure entry for an ongoing epic story. This is Day {progress.story_day}.
+    # Create dynamic prompt based on story progression
+    prompt = f"""Write today's D&D adventure entry for an ongoing epic story. 
+
+STORY PROGRESSION:
+- Overall Day: {progress.story_day}
+- Chapter: {story_info['chapter']} 
+- Day in Chapter: {story_info['day_in_chapter']}
+- Phase: {story_info['phase']}
+- Power Level: {story_info['complexity']}
 
 {context}
 
-Guidelines:
-- {story_focus}
+WRITING GUIDELINES:
+- {story_info['focus']}
+- {story_info['scope']}
 - Advance the story meaningfully - no repetition or circular events
 - Include specific details: names, places, discoveries, or encounters
-- Show character growth and world progression
+- Show character growth and escalating power/responsibility
 - Keep it engaging and around 120-150 words
-- End with a subtle hook for tomorrow
+- End with a hook for tomorrow
+
+SPECIAL INSTRUCTIONS:
+{get_special_chapter_instructions(story_info['day_in_chapter'], story_info['chapter'])}
 
 At the end, update the story state in this format:
 [LOCATION: new location if changed]
@@ -876,7 +881,7 @@ At the end, update the story state in this format:
 [COMPANIONS: current companions]
 [EVENTS: summary of today's key events]"""
     
-    system_message = """You are a master D&D dungeon master creating a continuous, evolving story. Each day should meaningfully advance the narrative. Avoid repetition and ensure real progression. Create memorable moments that build toward something greater."""
+    system_message = """You are a master D&D dungeon master creating a continuous, evolving epic saga. Each day should meaningfully advance the narrative with proper story structure. Create memorable moments that build toward greater adventures. Avoid repetition and ensure real progression through escalating challenges and character growth."""
     
     narrative_text = generate_ai_response(prompt, system_message, api_key)
     
@@ -936,8 +941,83 @@ At the end, update the story state in this format:
         'date': date,
         'story_day': progress.story_day - 1,
         'location': progress.current_location,
-        'quest': progress.main_quest
+        'quest': progress.main_quest,
+        'chapter': story_info['chapter'],
+        'phase': story_info['phase'],
+        'complexity': story_info['complexity']
     })
+
+def get_story_phase_and_focus(story_day):
+    """Determine story phase and focus based on day count"""
+    
+    # Calculate which "chapter" we're in (every 50 days = new chapter)
+    chapter = (story_day - 1) // 50 + 1
+    day_in_chapter = ((story_day - 1) % 50) + 1
+    
+    # Determine phase within current chapter
+    if day_in_chapter <= 10:
+        phase = "Opening"
+        if chapter == 1:
+            focus = "Begin your legendary journey. Introduce the world and initial quest."
+        else:
+            focus = f"Chapter {chapter} begins! New lands, new challenges, and greater threats emerge."
+    
+    elif day_in_chapter <= 25:
+        phase = "Rising Action"
+        focus = "Develop the main plot. Introduce allies, enemies, mysteries, and mounting challenges."
+    
+    elif day_in_chapter <= 40:
+        phase = "Climax Building"
+        focus = "Major conflicts intensify. Face significant trials, make crucial decisions, prepare for the climax."
+    
+    elif day_in_chapter <= 45:
+        phase = "Climax"
+        focus = "The chapter's main conflict reaches its peak! Epic battles, major revelations, heroic moments."
+    
+    else:  # Days 46-50
+        phase = "Resolution"
+        focus = "Conclude the chapter's main arc. Celebrate victories, mourn losses, set up the next adventure."
+    
+    # Add complexity based on overall progression
+    if story_day <= 50:
+        complexity = "Local Hero"
+        scope = "Focus on personal growth and local threats."
+    elif story_day <= 100:
+        complexity = "Regional Champion" 
+        scope = "Expand to affect kingdoms, face greater magical threats."
+    elif story_day <= 200:
+        complexity = "Continental Legend"
+        scope = "Multi-kingdom politics, ancient evils, world-shaking events."
+    else:
+        complexity = "Mythic Figure"
+        scope = "Godlike powers, planar threats, reality-altering consequences."
+    
+    return {
+        'chapter': chapter,
+        'day_in_chapter': day_in_chapter,
+        'phase': phase,
+        'focus': focus,
+        'complexity': complexity,
+        'scope': scope
+    }
+
+def get_special_chapter_instructions(day_in_chapter, chapter_num):
+    """Provide special instructions based on story position"""
+    
+    if day_in_chapter == 1 and chapter_num > 1:
+        return f"CHAPTER {chapter_num} OPENING: Introduce new setting, escalated threats, and evolved character status."
+    
+    elif day_in_chapter == 50:  # Chapter ending
+        return "CHAPTER FINALE: Provide satisfying conclusion to this chapter's main arc. Hint at future adventures."
+    
+    elif day_in_chapter in [45, 46, 47, 48, 49]:  # Climax period
+        return "CLIMAX SEQUENCE: This is peak drama! Make it epic and consequential."
+    
+    elif chapter_num >= 3 and day_in_chapter == 25:  # Mid-chapter in later chapters
+        return "MID-CHAPTER TWIST: Introduce a major plot twist or revelation that changes everything."
+    
+    else:
+        return "Continue the natural story progression."
 
 @app.route('/api/narratives')
 @login_required
