@@ -96,6 +96,8 @@ class Task(db.Model):
     is_completed = db.Column(db.Boolean, default=False)
     is_skipped = db.Column(db.Boolean, default=False)
     is_negative_habit = db.Column(db.Boolean, default=False)
+    negative_habit_done = db.Column(db.Boolean, default=None)  # None=not answered, True=did it, False=avoided
+
 
 class Quest(db.Model):
     quest_id = db.Column(db.Integer, primary_key=True)
@@ -563,6 +565,7 @@ def api_complete_negative_habit():
         return jsonify({'success': False, 'error': 'Task already completed'})
     
     task.is_completed = True
+    task.negative_habit_done = did_negative  # Track the actual outcome
     
     if did_negative:
         # Did the negative habit - apply stress
@@ -601,7 +604,7 @@ def api_complete_negative_habit():
             total_xp_gained=0
         )
         db.session.add(daily_stat)
-
+    
     # Ensure values are not None
     if daily_stat.tasks_completed is None:
         daily_stat.tasks_completed = 0
@@ -611,7 +614,7 @@ def api_complete_negative_habit():
     daily_stat.tasks_completed += 1
     if not did_negative:
         daily_stat.total_xp_gained += (task.xp_gained or 25)
-        
+    
     db.session.commit()
     return jsonify({'success': True, 'did_negative': did_negative})
 
@@ -671,11 +674,19 @@ def api_get_stats():
         is_completed=True
     ).count()
     
-    # Get negative habits completed
-    stats['Negative Habits Completed'] = Task.query.filter_by(
+    # UPDATED: More specific negative habit stats
+    stats['Negative Habits Done'] = Task.query.filter_by(
         user_id=current_user.id, 
         is_completed=True, 
-        is_negative_habit=True
+        is_negative_habit=True,
+        negative_habit_done=True  # Only count when they actually did it
+    ).count()
+    
+    stats['Negative Habits Avoided'] = Task.query.filter_by(
+        user_id=current_user.id, 
+        is_completed=True, 
+        is_negative_habit=True,
+        negative_habit_done=False  # Only count when they avoided it
     ).count()
     
     # Get skipped tasks for today
