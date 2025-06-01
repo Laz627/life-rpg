@@ -609,3 +609,294 @@ function renderQuests() {
 
 function createQuestCard(quest) {
     const card = document.createElement('div');
+    card.className = `quest-card quest-difficulty-${quest.difficulty.toLowerCase()} ${quest.status !== 'Active' ? 'quest-completed-card' : ''}`;
+    
+    let dueStatus = '';
+    if (quest.status === 'Active' && quest.due_date) {
+        const dueDate = new Date(quest.due_date + "T23:59:59"); // Consider end of day for due date
+        const today = new Date();
+        const diffTime = dueDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) dueStatus = `<span style="color: var(--negative-color);">Overdue!</span>`;
+        else if (diffDays === 0) dueStatus = `<span style="color: var(--neutral-color);">Due Today!</span>`;
+        else dueStatus = `Due in ${diffDays} day(s)`;
+    } else if (quest.status === 'Completed') {
+        dueStatus = `Completed: ${quest.completed_date}`;
+    } else {
+        dueStatus = 'No due date';
+    }
+
+    card.innerHTML = `
+        <div class="quest-title-line">
+            <span class="quest-title">${quest.title}</span>
+            <span class="quest-difficulty-badge quest-difficulty-${quest.difficulty}">${quest.difficulty}</span>
+        </div>
+        <p class="quest-description">${quest.description || 'No description provided.'}</p>
+        <div class="quest-details">
+            <span class="quest-attribute-tag">Focus: ${quest.attribute_focus || 'General'}</span>
+            <span class="quest-xp-tag">XP: ${quest.xp_reward}</span>
+            <span>${dueStatus}</span>
+        </div>
+        ${quest.status === 'Active' ? `<button onclick="completeQuest(${quest.id})" class="btn-success btn-small">⚔ Complete Quest</button>` : ''}
+    `;
+    return card;
+}
+
+function renderMilestones() {
+    const container = document.getElementById('milestones-container');
+    container.innerHTML = '';
+    if (!milestones.data || milestones.data.length === 0) {
+        container.innerHTML = '<p>No achievements yet. Keep up the great work!</p>'; return;
+    }
+    milestones.data.forEach(m => {
+        const el = document.createElement('div');
+        el.className = 'milestone';
+        el.innerHTML = `
+            <button class="btn-danger btn-small" style="float:right; opacity:0.7;" onclick="deleteMilestone(${m.id})" title="Delete Achievement">✕</button>
+            <div class="milestone-title">${m.title}</div>
+            <p class="milestone-description">${m.description}</p>
+            <div class="milestone-date">
+                <span>${m.date} (${m.type})</span>
+                ${m.attribute ? `<span>— ${m.attribute}</span>` : ''}
+            </div>
+        `;
+        container.appendChild(el);
+    });
+}
+
+function renderDailyNarrative(narrativeContent, dateForNarrative = currentSelectedDate) {
+    const container = document.getElementById('daily-narrative').querySelector('.narrative-content');
+    container.innerHTML = narrativeContent ? narrativeContent.replace(/\n/g, '<br>') : 'No narrative available for this day. Perhaps an adventure awaits?';
+}
+
+function renderNarrativeHistory() {
+    const container = document.getElementById('narrative-history-container');
+    container.innerHTML = '';
+    if (!narratives.data || narratives.data.length === 0) {
+        container.innerHTML = '<p>No past adventures recorded in this chapter.</p>'; return;
+    }
+    narratives.data.forEach(n => {
+        const el = document.createElement('div');
+        el.className = 'narrative-item'; // Use .narrative-item for list items
+        el.innerHTML = `
+            <div class="narrative-date"><strong>${n.date}</strong></div>
+            <div class="narrative-content">${n.narrative.replace(/\n/g, '<br>')}</div>
+        `;
+        container.appendChild(el);
+    });
+}
+
+function renderHeatmap(year, month, data) { // month is 1-indexed
+    const container = document.getElementById('calendar-heatmap-display');
+    container.innerHTML = '';
+    if (!data) { container.innerHTML = '<p>Loading heatmap data...</p>'; return; }
+
+    const activityMap = new Map(data.map(item => [item.date, { count: item.count, xp: item.xp }]));
+    const table = document.createElement('table');
+    table.className = 'calendar-table';
+    const headerRow = table.insertRow();
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach(dayName => {
+        const th = document.createElement('th'); th.textContent = dayName; headerRow.appendChild(th);
+    });
+
+    const firstDayOfMonth = new Date(year, month - 1, 1).getDay();
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    let currentDay = 1;
+    for (let i = 0; i < 6; i++) {
+        const weekRow = table.insertRow();
+        for (let j = 0; j < 7; j++) {
+            const dayCell = weekRow.insertCell();
+            if (i === 0 && j < firstDayOfMonth) {
+                dayCell.className = 'calendar-empty-day';
+            } else if (currentDay <= daysInMonth) {
+                dayCell.className = 'calendar-day';
+                const dayNumberDiv = document.createElement('div');
+                dayNumberDiv.className = 'calendar-day-number';
+                dayNumberDiv.textContent = currentDay;
+                dayCell.appendChild(dayNumberDiv);
+
+                const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(currentDay).padStart(2,'0')}`;
+                const activity = activityMap.get(dateStr);
+                let intensityLevel = 0;
+                if (activity) {
+                    const dataDiv = document.createElement('div');
+                    dataDiv.className = 'calendar-day-data';
+                    dataDiv.innerHTML = `Tasks: ${activity.count}<br>XP: ${activity.xp}`;
+                    dayCell.appendChild(dataDiv);
+                    
+                    if (activity.xp > 0) intensityLevel = 1;
+                    if (activity.xp >= 50) intensityLevel = 2;
+                    if (activity.xp >= 100) intensityLevel = 3;
+                    if (activity.xp >= 200) intensityLevel = 4;
+                    
+                    dayCell.addEventListener('mouseenter', (e) => showTooltip(e, `${dateStr}: ${activity.count} tasks, ${activity.xp} XP`));
+                    dayCell.addEventListener('mouseleave', hideTooltip);
+                }
+                dayCell.classList.add(`day-level-${intensityLevel}`);
+                currentDay++;
+            } else {
+                dayCell.className = 'calendar-empty-day';
+            }
+        }
+        if (currentDay > daysInMonth) break;
+    }
+    container.appendChild(table);
+}
+
+function updateHeatmapControlsLabel() {
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    document.getElementById('current-heatmap-month-year').textContent = `${monthNames[heatmapCurrentDate.getMonth()]} ${heatmapCurrentDate.getFullYear()}`;
+}
+
+function navigateHeatmapMonth(direction) {
+    heatmapCurrentDate.setMonth(heatmapCurrentDate.getMonth() + direction);
+    updateHeatmapControlsLabel();
+    fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1); // Month is 1-indexed for API
+}
+
+function renderAttributeHistory(data) {
+    const ctx = document.getElementById('attribute-history-chart')?.getContext('2d');
+    if (!ctx || !data || !data.dates || !data.attributes) {
+        console.warn("Attribute history chart canvas or data not found.");
+        return;
+    }
+
+    const datasets = [];
+    const defaultColors = ['#e63946', '#fca311', '#2ec4b6', '#003049', '#a7c957', '#ffbe0b', '#540b0e', '#0ead69'];
+    let colorIndex = 0;
+
+    for (const [attrName, levels] of Object.entries(data.attributes)) {
+        if (levels.some(l => l > 0)) { // Only plot if there's some progress
+            datasets.push({
+                label: attrName,
+                data: levels,
+                borderColor: defaultColors[colorIndex % defaultColors.length],
+                backgroundColor: defaultColors[colorIndex % defaultColors.length] + '33', // Add alpha for fill
+                tension: 0.2, // Smoother lines
+                fill: false, // No fill under line
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5
+            });
+            colorIndex++;
+        }
+    }
+
+    if (attributeHistoryChart) {
+        attributeHistoryChart.data.labels = data.dates;
+        attributeHistoryChart.data.datasets = datasets;
+        attributeHistoryChart.update();
+    } else if (typeof Chart !== 'undefined') {
+        attributeHistoryChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.dates,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        title: { display: true, text: 'Level' },
+                        ticks: { stepSize: 1 } // Integer levels
+                    },
+                    x: { 
+                        title: {display: true, text: 'Date'}, 
+                        ticks: { autoSkip: true, maxTicksLimit: 10 } 
+                    } 
+                },
+                plugins: { 
+                    legend: { position: 'bottom' }, 
+                    title: { display: true, text: 'Attribute Progress (Last 30 Days)', font: {size: 16, family: "'MedievalSharp', cursive"} } 
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
+            }
+        });
+    }
+}
+
+// --- Utility Functions ---
+function populateAttributeDropdowns() {
+    const attributeSelects = ['task-attribute', 'recurring-task-attribute', 'quest-attribute'];
+    attributeSelects.forEach(selectId => {
+        const selectElement = document.getElementById(selectId);
+        if (!selectElement) return;
+        
+        const firstOptionValue = selectElement.options[0]?.value; // Preserve "No/Any Attribute"
+        selectElement.innerHTML = ''; // Clear existing
+        
+        if (firstOptionValue !== undefined) { // Add back the first option
+            const firstOpt = document.createElement('option');
+            firstOpt.value = firstOptionValue;
+            firstOpt.textContent = selectId === 'quest-attribute' ? 'Any Attribute' : 'No Attribute';
+            selectElement.appendChild(firstOpt);
+        }
+
+        attributes.forEach(attr => {
+            const option = document.createElement('option');
+            option.value = attr.name;
+            option.textContent = `${attr.name} (Lvl ${attr.level})`;
+            selectElement.appendChild(option);
+        });
+    });
+}
+
+function renderPagination(containerId, infoContainerId, pageDataObject, fetchCallback) {
+    const container = document.getElementById(containerId);
+    const infoContainer = document.getElementById(infoContainerId);
+    container.innerHTML = '';
+    if (infoContainer) infoContainer.innerHTML = '';
+
+    if (!pageDataObject || pageDataObject.totalPages <= 1) return;
+
+    if (pageDataObject.page > 1) {
+        const prevBtn = document.createElement('button');
+        prevBtn.innerHTML = '« Prev';
+        prevBtn.className = 'btn-secondary btn-small';
+        prevBtn.onclick = () => fetchCallback(pageDataObject.page - 1);
+        container.appendChild(prevBtn);
+    }
+    
+    // Simple page number display (could be expanded)
+    const pageNumSpan = document.createElement('span');
+    pageNumSpan.textContent = ` Page ${pageDataObject.page} of ${pageDataObject.totalPages} `;
+    pageNumSpan.style.margin = "0 10px";
+    container.appendChild(pageNumSpan);
+
+    if (pageDataObject.page < pageDataObject.totalPages) {
+        const nextBtn = document.createElement('button');
+        nextBtn.innerHTML = 'Next »';
+        nextBtn.className = 'btn-secondary btn-small';
+        nextBtn.onclick = () => fetchCallback(pageDataObject.page + 1);
+        container.appendChild(nextBtn);
+    }
+    if (infoContainer) infoContainer.textContent = `Showing page ${pageDataObject.page} of ${pageDataObject.totalPages}. Total items: ${pageDataObject.total || 'N/A'}`;
+}
+
+const tooltipElement = document.getElementById('tooltip');
+function showTooltip(event, text) {
+    if (!tooltipElement) return;
+    tooltipElement.innerHTML = text; // Use innerHTML if text contains HTML, else textContent
+    tooltipElement.style.display = 'block';
+    // Position tooltip carefully to avoid going off-screen
+    let x = event.pageX + 15;
+    let y = event.pageY + 15;
+    if (x + tooltipElement.offsetWidth > window.innerWidth) {
+        x = event.pageX - tooltipElement.offsetWidth - 15;
+    }
+    if (y + tooltipElement.offsetHeight > window.innerHeight) {
+        y = event.pageY - tooltipElement.offsetHeight - 15;
+    }
+    tooltipElement.style.left = x + 'px';
+    tooltipElement.style.top = y + 'px';
+}
+function hideTooltip() {
+    if (!tooltipElement) return;
+    tooltipElement.style.display = 'none';
+}
