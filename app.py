@@ -612,8 +612,8 @@ def api_complete_negative_habit():
     if not did_negative:
         daily_stat.total_xp_gained += (task.xp_gained or 25)
         
-        db.session.commit()
-        return jsonify({'success': True, 'did_negative': did_negative})
+    db.session.commit()
+    return jsonify({'success': True, 'did_negative': did_negative})
 
 @app.route('/api/skip_task', methods=['POST'])
 @login_required
