@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life RPG</title>
+    <title>Life RPG - Gamify Your Life</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#6a1b9a">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <!-- API Key Modal -->
     <div id="apiKeyModal" class="modal">
         <div class="modal-content">
             <h2>Welcome to Life RPG!</h2>
-            <p>To use AI features, please enter your OpenAI API key:</p>
+            <p>To unlock AI features (quest generation, narratives), please enter your OpenAI API key:</p>
             <p class="help-text">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Dashboard</a></p>
             <input type="password" id="apiKeyInput" placeholder="sk-...">
             <button onclick="saveApiKey()">Save API Key</button>
@@ -22,61 +23,278 @@
         </div>
     </div>
 
-    <!-- Main App -->
-    <div id="app">
+    <!-- Tooltip for hover effects -->
+    <div id="tooltip" class="tooltip"></div>
+
+    <div class="container">
         <header>
-            <h1>Life RPG</h1>
-            <div id="dateDisplay"></div>
+            <h1>⚔️ Life RPG</h1>
+            <div id="character-level" class="character-level-badge">Level 1</div>
         </header>
 
-        <main>
-            <!-- Stats Section -->
-            <section id="stats" class="card">
-                <h2>Character Stats</h2>
-                <div id="statsContent">Loading...</div>
-            </section>
-
-            <!-- Tasks Section -->
-            <section id="tasks" class="card">
-                <h2>Today's Tasks</h2>
-                <div id="addTaskForm">
-                    <input type="text" id="taskDescription" placeholder="Task description...">
-                    <select id="taskAttribute">
-                        <option value="">Select Attribute</option>
-                    </select>
-                    <select id="taskSubskill">
-                        <option value="">Select Subskill</option>
-                    </select>
-                    <select id="taskDifficulty">
-                        <option value="easy">Easy (10 XP)</option>
-                        <option value="medium" selected>Medium (25 XP)</option>
-                        <option value="hard">Hard (50 XP)</option>
-                        <option value="extra_hard">Extra Hard (100 XP)</option>
-                    </select>
-                    <button onclick="addTask()">Add Task</button>
+        <main class="dashboard">
+            <!-- Character Stats Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 id="stats-card-header">Character Stats</h2>
+                    <span class="card-icon">📊</span>
                 </div>
-                <div id="tasksList"></div>
-            </section>
+                <div class="card-content">
+                    <div id="character-stats"></div>
+                    <div class="stress-section">
+                        <strong>Stress Level:</strong>
+                        <div class="stress-meter">
+                            <div id="stress-fill" class="stress-fill" style="width: 0%;">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            <!-- Attributes Section -->
-            <section id="attributes" class="card">
-                <h2>Attributes</h2>
-                <div id="attributesContent">Loading...</div>
-            </section>
+            <!-- Tasks Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 id="tasks-card-header">Today's Tasks</h2>
+                    <span class="card-icon">✅</span>
+                </div>
+                <div class="card-content">
+                    <div class="date-picker-container">
+                        <label for="selected-date">Date:</label>
+                        <input type="date" id="selected-date">
+                    </div>
+                    <div class="scrollable-content">
+                        <ul id="task-list" class="task-list"></ul>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    <button id="add-task-btn" class="btn-primary">+ Add Task</button>
+                    <button id="reset-day-btn" class="btn-danger">🔄 Reset Day</button>
+                </div>
+            </div>
 
-            <!-- Quests Section -->
-            <section id="quests" class="card">
-                <h2>Active Quests</h2>
-                <button onclick="generateQuest()" id="generateQuestBtn">Generate New Quest (AI)</button>
-                <div id="questsList"></div>
-            </section>
+            <!-- Add Task Form (Hidden by default) -->
+            <div id="add-task-form-container" class="form-container" style="display: none;">
+                <form id="add-task-form" class="add-entity-form">
+                    <h4>Add New Task</h4>
+                    <div class="form-group">
+                        <label for="task-description">Task Description:</label>
+                        <input type="text" id="task-description" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-attribute">Attribute:</label>
+                        <select id="task-attribute">
+                            <option value="">No Attribute</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Task Type:</label>
+                        <div id="task-type-radio" class="radio-group">
+                            <div class="radio-option selected" data-value="positive">Positive Task</div>
+                            <div class="radio-option negative" data-value="negative">Negative Habit</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-difficulty">Difficulty:</label>
+                        <select id="task-difficulty">
+                            <option value="easy">Easy (10 XP)</option>
+                            <option value="medium" selected>Medium (25 XP)</option>
+                            <option value="hard">Hard (50 XP)</option>
+                            <option value="extra_hard">Extra Hard (100 XP)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-stress">Stress Effect: <span id="task-stress-value-display">-3</span></label>
+                        <input type="range" id="task-stress" min="-10" max="10" value="-3">
+                    </div>
+                    <button type="submit" class="btn-success">Add Task</button>
+                </form>
+            </div>
 
-            <!-- Daily Narrative -->
-            <section id="narrative" class="card">
-                <h2>Today's Adventure</h2>
-                <button onclick="generateNarrative()" id="generateNarrativeBtn">Generate Narrative (AI)</button>
-                <div id="narrativeContent"></div>
-            </section>
+            <!-- Attributes Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Attributes</h2>
+                    <span class="card-icon">⚡</span>
+                </div>
+                <div class="card-content">
+                    <div class="scrollable-content">
+                        <div id="attributes-container"></div>
+                    </div>
+                    <div class="attribute-chart-container">
+                        <canvas id="attribute-history-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recurring Tasks Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Recurring Habits</h2>
+                    <span class="card-icon">🔄</span>
+                </div>
+                <div class="card-content">
+                    <div class="scrollable-content">
+                        <ul id="recurring-tasks-list" class="task-list"></ul>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    <button id="add-recurring-task-btn" class="btn-primary">+ Add Habit</button>
+                </div>
+            </div>
+
+            <!-- Add Recurring Task Form (Hidden by default) -->
+            <div id="add-recurring-task-form-container" class="form-container" style="display: none;">
+                <form id="add-recurring-task-form" class="add-entity-form">
+                    <h4>Add Recurring Habit</h4>
+                    <div class="form-group">
+                        <label for="recurring-task-description">Habit Description:</label>
+                        <input type="text" id="recurring-task-description" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="recurring-task-attribute">Attribute:</label>
+                        <select id="recurring-task-attribute">
+                            <option value="">No Attribute</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Habit Type:</label>
+                        <div id="recurring-task-type-radio" class="radio-group">
+                            <div class="radio-option selected" data-value="positive">Positive Habit</div>
+                            <div class="radio-option negative" data-value="negative">Negative Habit</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="recurring-task-difficulty">Difficulty:</label>
+                        <select id="recurring-task-difficulty">
+                            <option value="easy">Easy (10 XP)</option>
+                            <option value="medium" selected>Medium (25 XP)</option>
+                            <option value="hard">Hard (50 XP)</option>
+                            <option value="extra_hard">Extra Hard (100 XP)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="recurring-task-stress">Stress Effect: <span id="recurring-task-stress-value-display">-3</span></label>
+                        <input type="range" id="recurring-task-stress" min="-10" max="10" value="-3">
+                    </div>
+                    <button type="submit" class="btn-success">Add Habit</button>
+                </form>
+            </div>
+
+            <!-- Quests Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Quests</h2>
+                    <span class="card-icon">🗡️</span>
+                </div>
+                <div class="card-content">
+                    <div class="scrollable-content">
+                        <div id="quests-container"></div>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    <button id="add-quest-btn" class="btn-primary">+ Add Quest</button>
+                    <button id="generate-quest-btn" class="btn-warning">🎲 Generate Quest (AI)</button>
+                </div>
+            </div>
+
+            <!-- Add Quest Form (Hidden by default) -->
+            <div id="add-quest-form-container" class="form-container" style="display: none;">
+                <form id="add-quest-form" class="add-entity-form">
+                    <h4>Create New Quest</h4>
+                    <div class="form-group">
+                        <label for="quest-title">Quest Title:</label>
+                        <input type="text" id="quest-title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="quest-description">Quest Description:</label>
+                        <textarea id="quest-description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="quest-difficulty">Difficulty:</label>
+                        <select id="quest-difficulty">
+                            <option value="Easy">Easy (50 XP)</option>
+                            <option value="Medium" selected>Medium (100 XP)</option>
+                            <option value="Hard">Hard (175 XP)</option>
+                            <option value="Epic">Epic (250 XP)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="quest-attribute">Attribute Focus:</label>
+                        <select id="quest-attribute">
+                            <option value="">Any Attribute</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="quest-due-date">Due Date (Optional):</label>
+                        <input type="date" id="quest-due-date">
+                    </div>
+                    <button type="submit" class="btn-success">Create Quest</button>
+                </form>
+            </div>
+
+            <!-- Daily Narrative Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 id="narrative-card-header">Adventure Log</h2>
+                    <span class="card-icon">📜</span>
+                </div>
+                <div class="card-content">
+                    <div id="daily-narrative" class="narrative">
+                        <h4 id="daily-narrative-header">Today's Adventure</h4>
+                        <div class="narrative-content">Loading your adventure...</div>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    <button id="refresh-narrative-btn" class="btn-warning">🎭 Generate Narrative (AI)</button>
+                </div>
+            </div>
+
+            <!-- Milestones & Achievements Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Achievements</h2>
+                    <span class="card-icon">🏆</span>
+                </div>
+                <div class="card-content">
+                    <div class="scrollable-content">
+                        <div id="milestones-container"></div>
+                    </div>
+                    <div id="milestones-pagination" class="pagination"></div>
+                    <div id="milestones-pagination-info" class="pagination-info"></div>
+                </div>
+            </div>
+
+            <!-- Activity Heatmap Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Activity Heatmap</h2>
+                    <span class="card-icon">📅</span>
+                </div>
+                <div class="card-content">
+                    <div class="heatmap-controls">
+                        <button id="prev-month-heatmap" class="btn-secondary btn-small">« Prev Month</button>
+                        <span id="current-heatmap-month-year">Loading...</span>
+                        <button id="next-month-heatmap" class="btn-secondary btn-small">Next Month »</button>
+                    </div>
+                    <div class="calendar-heatmap-display-area">
+                        <div id="calendar-heatmap-display">Loading heatmap...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Narrative History Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Adventure History</h2>
+                    <span class="card-icon">📚</span>
+                </div>
+                <div class="card-content">
+                    <div class="scrollable-content">
+                        <div id="narrative-history-container"></div>
+                    </div>
+                    <div id="narratives-pagination" class="pagination"></div>
+                    <div id="narratives-pagination-info" class="pagination-info"></div>
+                </div>
+            </div>
         </main>
     </div>
 
