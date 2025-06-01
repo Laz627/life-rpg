@@ -526,8 +526,20 @@ def api_complete_task():
     today = datetime.date.today().isoformat()
     daily_stat = DailyStat.query.filter_by(user_id=current_user.id, date=today).first()
     if not daily_stat:
-        daily_stat = DailyStat(user_id=current_user.id, date=today)
+        daily_stat = DailyStat(
+            user_id=current_user.id, 
+            date=today,
+            stress_level=0,
+            tasks_completed=0,
+            total_xp_gained=0
+        )
         db.session.add(daily_stat)
+    
+    # Ensure values are not None before incrementing
+    if daily_stat.tasks_completed is None:
+        daily_stat.tasks_completed = 0
+    if daily_stat.total_xp_gained is None:
+        daily_stat.total_xp_gained = 0
     
     daily_stat.tasks_completed += 1
     if not task.is_negative_habit:
@@ -581,12 +593,24 @@ def api_complete_negative_habit():
     today = datetime.date.today().isoformat()
     daily_stat = DailyStat.query.filter_by(user_id=current_user.id, date=today).first()
     if not daily_stat:
-        daily_stat = DailyStat(user_id=current_user.id, date=today)
+        daily_stat = DailyStat(
+            user_id=current_user.id, 
+            date=today,
+            stress_level=0,
+            tasks_completed=0,
+            total_xp_gained=0
+        )
         db.session.add(daily_stat)
-    
-    daily_stat.tasks_completed += 1
-    if not did_negative:
-        daily_stat.total_xp_gained += (task.xp_gained or 25)
+
+# Ensure values are not None
+if daily_stat.tasks_completed is None:
+    daily_stat.tasks_completed = 0
+if daily_stat.total_xp_gained is None:
+    daily_stat.total_xp_gained = 0
+
+daily_stat.tasks_completed += 1
+if not did_negative:
+    daily_stat.total_xp_gained += (task.xp_gained or 25)
     
     db.session.commit()
     return jsonify({'success': True, 'did_negative': did_negative})
