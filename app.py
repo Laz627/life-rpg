@@ -175,7 +175,7 @@ def generate_ai_response(prompt, system_message, api_key):
     try:
         openai.api_key = api_key
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}
@@ -209,7 +209,7 @@ def test_api_key():
     try:
         openai.api_key = api_key
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": "test"}],
             max_tokens=5
         )
