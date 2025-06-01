@@ -73,8 +73,6 @@ function skipApiKey() {
 
 async function initializePageData() {
     console.log("Initializing all page data...");
-    // Initialize database first
-    await apiCall('/api/init');
     
     // Fetch in a somewhat logical order, things that populate dropdowns first
     await fetchAndRenderAttributes(); // Attributes needed for dropdowns
