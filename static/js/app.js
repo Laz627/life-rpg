@@ -1,34 +1,50 @@
-// Global variables
-let currentDate = new Date().toISOString().split('T')[0];
+// --- Global State Variables ---
+let currentSelectedDate = new Date().toISOString().split('T')[0];
 let attributes = [];
+let tasks = [];
+let recurringTasks = [];
+let characterStats = {};
+let quests = [];
+let milestones = { data: [], page: 1, totalPages: 1, perPage: 5 };
+let narratives = { data: [], page: 1, totalPages: 1, perPage: 3 };
+let attributeHistoryChart = null;
+let heatmapCurrentDate = new Date(); // For heatmap navigation
 
-// Initialize app
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
+// --- DOM Ready Initialization ---
+document.addEventListener('DOMContentLoaded', () => {
+    checkAPIKey();
+    document.getElementById('selected-date').value = currentSelectedDate;
+    initializePageData();
+    setupEventListeners();
 });
 
-async function initializeApp() {
-    // Initialize database
-    await fetch('/api/init');
-    
-    // Check for API key
+function checkAPIKey() {
     const apiKey = localStorage.getItem('openai_api_key');
     if (!apiKey) {
         document.getElementById('apiKeyModal').style.display = 'block';
+    } else {
+        enableAIFeatures();
     }
-    
-    // Load initial data
-    updateDateDisplay();
-    loadAttributes();
-    loadTasks();
-    loadStats();
-    loadQuests();
-    
-    // Set up intervals
-    setInterval(updateDateDisplay, 60000); // Update every minute
 }
 
-// API Key Management
+function enableAIFeatures() {
+    const generateBtns = document.querySelectorAll('[id*="generate"]');
+    generateBtns.forEach(btn => {
+        btn.disabled = false;
+        btn.textContent = btn.textContent.replace(' (Requires API Key)', '');
+    });
+}
+
+function disableAIFeatures() {
+    const generateBtns = document.querySelectorAll('[id*="generate"]');
+    generateBtns.forEach(btn => {
+        btn.disabled = true;
+        if (!btn.textContent.includes('(Requires API Key)')) {
+            btn.textContent += ' (Requires API Key)';
+        }
+    });
+}
+
 function saveApiKey() {
     const apiKey = document.getElementById('apiKeyInput').value;
     if (!apiKey) {
@@ -37,14 +53,9 @@ function saveApiKey() {
     }
     
     // Test the API key
-    fetch('/api/test_api_key', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({api_key: apiKey})
-    })
-    .then(response => response.json())
+    apiCall('/api/test_api_key', 'POST', {api_key: apiKey})
     .then(data => {
-        if (data.success) {
+        if (data && data.success) {
             localStorage.setItem('openai_api_key', apiKey);
             document.getElementById('apiKeyModal').style.display = 'none';
             alert('API key saved successfully!');
@@ -60,318 +71,541 @@ function skipApiKey() {
     disableAIFeatures();
 }
 
-function enableAIFeatures() {
-    document.getElementById('generateQuestBtn').disabled = false;
-    document.getElementById('generateNarrativeBtn').disabled = false;
-}
-
-function disableAIFeatures() {
-    document.getElementById('generateQuestBtn').disabled = true;
-    document.getElementById('generateQuestBtn').textContent = 'Generate New Quest (Requires API Key)';
-    document.getElementById('generateNarrativeBtn').disabled = true;
-    document.getElementById('generateNarrativeBtn').textContent = 'Generate Narrative (Requires API Key)';
-}
-
-// Date Management
-function updateDateDisplay() {
-    const now = new Date();
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('dateDisplay').textContent = now.toLocaleDateString('en-US', options);
-}
-
-// Load Functions
-async function loadAttributes() {
-    const response = await fetch('/api/attributes');
-    attributes = await response.json();
+async function initializePageData() {
+    console.log("Initializing all page data...");
+    // Initialize database first
+    await apiCall('/api/init');
     
-    // Update attribute dropdown
-    const select = document.getElementById('taskAttribute');
-    select.innerHTML = '<option value="">Select Attribute</option>';
-    attributes.forEach(attr => {
-        const option = document.createElement('option');
-        option.value = attr.name;
-        option.textContent = `${attr.name} (Lv ${attr.level})`;
-        select.appendChild(option);
+    // Fetch in a somewhat logical order, things that populate dropdowns first
+    await fetchAndRenderAttributes(); // Attributes needed for dropdowns
+    
+    // Then fetch other core data
+    await fetchAndRenderTasks(currentSelectedDate);
+    await fetchAndRenderStats();
+    await fetchAndRenderRecurringTasks();
+    await fetchAndRenderQuests();
+    await fetchAndRenderMilestones(milestones.page);
+    await fetchAndRenderDailyNarrative(currentSelectedDate);
+    await fetchAndRenderNarrativeHistory(narratives.page);
+    await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1); // Month is 1-indexed for API
+    await fetchAndRenderAttributeHistory();
+    
+    updateHeatmapControlsLabel(); // Set initial heatmap label
+}
+
+// --- Event Listener Setup ---
+function setupEventListeners() {
+    // Date Picker for Tasks and Narratives
+    document.getElementById('selected-date').addEventListener('change', handleDateChange);
+
+    // Task Management
+    document.getElementById('add-task-btn').addEventListener('click', () => toggleForm('add-task-form-container'));
+    document.getElementById('add-task-form').addEventListener('submit', handleAddTask);
+    document.getElementById('task-stress').addEventListener('input', (e) => { document.getElementById('task-stress-value-display').textContent = e.target.value; });
+    setupRadioGroup('task-type-radio', 'task-difficulty', 'task-stress', 'task-stress-value-display');
+    document.getElementById('reset-day-btn').addEventListener('click', handleResetDay);
+
+    // Recurring Task Management
+    document.getElementById('add-recurring-task-btn').addEventListener('click', () => toggleForm('add-recurring-task-form-container'));
+    document.getElementById('add-recurring-task-form').addEventListener('submit', handleAddRecurringTask);
+    document.getElementById('recurring-task-stress').addEventListener('input', (e) => { document.getElementById('recurring-task-stress-value-display').textContent = e.target.value; });
+    setupRadioGroup('recurring-task-type-radio', 'recurring-task-difficulty', 'recurring-task-stress', 'recurring-task-stress-value-display');
+
+    // Quest Management
+    document.getElementById('add-quest-btn').addEventListener('click', () => toggleForm('add-quest-form-container'));
+    document.getElementById('add-quest-form').addEventListener('submit', handleAddQuest);
+    document.getElementById('generate-quest-btn').addEventListener('click', handleGenerateQuest);
+    
+    // Narrative Management
+    document.getElementById('refresh-narrative-btn').addEventListener('click', () => fetchAndRenderDailyNarrative(currentSelectedDate, true)); // true to force regeneration
+
+    // Heatmap Navigation
+    document.getElementById('prev-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(-1));
+    document.getElementById('next-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(1));
+}
+
+function toggleForm(formContainerId) {
+    const container = document.getElementById(formContainerId);
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+}
+
+function setupRadioGroup(groupId, difficultySelectId, stressSliderId, stressValueDisplayId) {
+    const group = document.getElementById(groupId);
+    if (!group) return;
+    const options = group.querySelectorAll('.radio-option');
+    options.forEach(option => {
+        option.addEventListener('click', () => {
+            options.forEach(opt => opt.classList.remove('selected'));
+            option.classList.add('selected');
+            
+            const isNegative = option.dataset.value === 'negative';
+            const difficultySelect = document.getElementById(difficultySelectId);
+            const stressSlider = document.getElementById(stressSliderId);
+            const stressValueDisplay = document.getElementById(stressValueDisplayId);
+
+            if (difficultySelect) difficultySelect.disabled = isNegative;
+            if (stressSlider && stressValueDisplay) {
+                let currentStress = parseInt(stressSlider.value);
+                if (isNegative) {
+                    stressSlider.value = Math.abs(currentStress) || 3;
+                } else {
+                    stressSlider.value = -(Math.abs(currentStress) || 3);
+                }
+                stressValueDisplay.textContent = stressSlider.value;
+            }
+        });
     });
-    
-    // Display attributes
-    displayAttributes();
+    // Initialize by clicking the first selected or first overall if none are pre-selected
+    const selectedOption = group.querySelector('.radio-option.selected') || options[0];
+    if (selectedOption) selectedOption.click();
 }
 
-function displayAttributes() {
-    const container = document.getElementById('attributesContent');
-    container.innerHTML = '';
+// --- Event Handlers ---
+async function handleDateChange(e) {
+    currentSelectedDate = e.target.value;
+    const isToday = currentSelectedDate === new Date().toISOString().split('T')[0];
     
-    attributes.forEach(attr => {
-        const progressPercent = (attr.xp_progress / attr.xp_needed) * 100;
-        
-        const attrHtml = `
-            <div class="attribute-item">
-                <div class="attribute-header">
-                    <h3>${attr.name}</h3>
-                    <span class="level-badge">Level ${attr.level}</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${progressPercent}%"></div>
-                </div>
-                <div class="xp-text">${attr.xp_progress} / ${attr.xp_needed} XP</div>
-            </div>
-        `;
-        container.innerHTML += attrHtml;
-    });
+    document.getElementById('tasks-card-header').textContent = isToday ? "Today's Tasks" : `Tasks for ${currentSelectedDate}`;
+    document.getElementById('narrative-card-header').textContent = isToday ? "Adventure Log" : `Log for ${currentSelectedDate}`;
+    document.getElementById('daily-narrative-header').textContent = isToday ? "Today's Adventure" : `Adventure for ${currentSelectedDate}`;
+
+    await fetchAndRenderTasks(currentSelectedDate);
+    await fetchAndRenderDailyNarrative(currentSelectedDate);
 }
 
-async function loadTasks() {
-    const response = await fetch(`/api/tasks?date=${currentDate}`);
-    const tasks = await response.json();
-    
-    const container = document.getElementById('tasksList');
-    container.innerHTML = '';
-    
-    // Separate completed and incomplete tasks
-    const incompleteTasks = tasks.filter(t => !t.completed);
-    const completedTasks = tasks.filter(t => t.completed);
-    
-    [...incompleteTasks, ...completedTasks].forEach(task => {
-        const taskHtml = `
-            <div class="task-item ${task.completed ? 'completed' : ''}">
-                <div class="task-info">
-                    <div class="task-description">${task.description}</div>
-                    <div class="task-meta">
-                        ${task.attribute || 'No attribute'} 
-                        ${task.subskill ? `- ${task.subskill}` : ''} 
-                        | ${task.xp} XP
-                    </div>
-                </div>
-                <div class="task-actions">
-                    ${!task.completed ? 
-                        `<button onclick="completeTask(${task.id})">Complete</button>` : 
-                        ''
-                    }
-                    <button onclick="deleteTask(${task.id})">Delete</button>
-                </div>
-            </div>
-        `;
-        container.innerHTML += taskHtml;
-    });
+async function handleAddTask(event) {
+    event.preventDefault();
+    const form = event.target;
+    const payload = {
+        description: form.querySelector('#task-description').value,
+        attribute: form.querySelector('#task-attribute').value,
+        difficulty: form.querySelector('#task-difficulty').value,
+        stress_effect: parseInt(form.querySelector('#task-stress').value),
+        is_negative_habit: form.querySelector('#task-type-radio .selected').dataset.value === 'negative',
+        date: currentSelectedDate
+    };
+    const result = await apiCall('/api/add_task', 'POST', payload);
+    if (result && result.success) {
+        form.reset();
+        setupRadioGroup('task-type-radio', 'task-difficulty', 'task-stress', 'task-stress-value-display'); // Re-init radio
+        toggleForm('add-task-form-container');
+        await fetchAndRenderTasks(currentSelectedDate);
+        if (!payload.is_negative_habit && payload.attribute) await fetchAndRenderAttributes(); // Only if XP might change
+        await fetchAndRenderStats();
+        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
+    }
 }
 
-async function loadStats() {
-    const response = await fetch('/api/stats');
-    const stats = await response.json();
-    
-    const container = document.getElementById('statsContent');
-    container.innerHTML = `
-        <div class="stats-grid">
-            <div class="stat-item">
-                <div class="stat-label">Total XP</div>
-                <div class="stat-value">${stats['Total XP'] || 0}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Tasks Completed</div>
-                <div class="stat-value">${stats['Total Tasks Completed'] || 0}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Stress Level</div>
-                <div class="stat-value">${stats['Stress'] || 0}</div>
-            </div>
-        </div>
-    `;
+async function handleResetDay() {
+    if (!confirm(`Are you sure you want to reset all data for ${currentSelectedDate}? This action cannot be undone.`)) return;
+    const result = await apiCall('/api/reset_day', 'POST', { date: currentSelectedDate });
+    if (result && result.success) {
+        alert(`Day ${result.date} has been reset. Tasks deleted: ${result.tasks_deleted}.`);
+        await initializePageData(); // Full refresh needed as many things could change
+    }
 }
 
-async function loadQuests() {
-    const response = await fetch('/api/quests');
-    const quests = await response.json();
-    
-    const container = document.getElementById('questsList');
-    container.innerHTML = '';
-    
-    const activeQuests = quests.filter(q => q.status === 'Active');
-    
-    if (activeQuests.length === 0) {
-        container.innerHTML = '<p>No active quests. Generate one!</p>';
+async function handleAddRecurringTask(event) {
+    event.preventDefault();
+    const form = event.target;
+    const payload = {
+        description: form.querySelector('#recurring-task-description').value,
+        attribute: form.querySelector('#recurring-task-attribute').value,
+        difficulty: form.querySelector('#recurring-task-difficulty').value,
+        stress_effect: parseInt(form.querySelector('#recurring-task-stress').value),
+        is_negative_habit: form.querySelector('#recurring-task-type-radio .selected').dataset.value === 'negative',
+    };
+    const result = await apiCall('/api/recurring_tasks', 'POST', payload);
+    if (result && result.success) {
+        form.reset();
+        setupRadioGroup('recurring-task-type-radio', 'recurring-task-difficulty', 'recurring-task-stress', 'recurring-task-stress-value-display');
+        toggleForm('add-recurring-task-form-container');
+        await fetchAndRenderRecurringTasks();
+        await fetchAndRenderTasks(currentSelectedDate); // Refresh tasks, new recurring might appear
+    }
+}
+
+async function handleAddQuest(event) {
+    event.preventDefault();
+    const form = event.target;
+    const payload = {
+        title: form.querySelector('#quest-title').value,
+        description: form.querySelector('#quest-description').value,
+        difficulty: form.querySelector('#quest-difficulty').value,
+        attribute_focus: form.querySelector('#quest-attribute').value,
+        due_date: form.querySelector('#quest-due-date').value || null,
+        // XP reward is typically set by difficulty on backend or via AI
+    };
+    // Add XP based on difficulty for manual quests
+    const diffToXp = {"Easy": 50, "Medium": 100, "Hard": 175, "Epic": 250};
+    payload.xp_reward = diffToXp[payload.difficulty] || 100;
+
+    const result = await apiCall('/api/add_quest', 'POST', payload);
+    if (result && result.success) {
+        form.reset();
+        toggleForm('add-quest-form-container');
+        await fetchAndRenderQuests();
+        await fetchAndRenderStats(); // Active quest count changes
+    }
+}
+
+async function handleGenerateQuest() {
+    const apiKey = localStorage.getItem('openai_api_key');
+    if (!apiKey) {
+        document.getElementById('apiKeyModal').style.display = 'block';
         return;
     }
     
-    activeQuests.forEach(quest => {
-        const questHtml = `
-            <div class="quest-item">
-                <div class="quest-header">
-                    <h4>${quest.title}</h4>
-                    <span class="quest-difficulty difficulty-${quest.difficulty}">${quest.difficulty}</span>
-                </div>
-                <p>${quest.description}</p>
-                <div class="quest-meta">
-                    <span>${quest.attribute_focus} | ${quest.xp_reward} XP</span>
-                    <span>Due: ${quest.due_date || 'No deadline'}</span>
-                </div>
-            </div>
-        `;
-        container.innerHTML += questHtml;
+    const form = document.getElementById('add-quest-form');
+    const attribute = form.querySelector('#quest-attribute').value;
+    const difficulty = form.querySelector('#quest-difficulty').value;
+    const questData = await apiCall('/api/generate_quest', 'POST', { 
+        attribute_focus: attribute, 
+        difficulty: difficulty,
+        api_key: apiKey 
     });
-}
-
-// Task Functions
-async function addTask() {
-    const description = document.getElementById('taskDescription').value;
-    const attribute = document.getElementById('taskAttribute').value;
-    const subskill = document.getElementById('taskSubskill').value;
-    const difficulty = document.getElementById('taskDifficulty').value;
-    
-    if (!description) {
-        alert('Please enter a task description');
-        return;
-    }
-    
-    const response = await fetch('/api/add_task', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            description,
-            attribute,
-            subskill,
-            difficulty,
-            date: currentDate
-        })
-    });
-    
-    if (response.ok) {
-        document.getElementById('taskDescription').value = '';
-        loadTasks();
+    if (questData) {
+        form.querySelector('#quest-title').value = questData.title || '';
+        form.querySelector('#quest-description').value = questData.description || '';
+        if (questData.difficulty) form.querySelector('#quest-difficulty').value = questData.difficulty;
+        if (questData.attribute_focus) form.querySelector('#quest-attribute').value = questData.attribute_focus;
+        if (questData.due_date) form.querySelector('#quest-due-date').value = questData.due_date;
     }
 }
 
+// --- Action Functions (called from rendered elements) ---
 async function completeTask(taskId) {
-    const response = await fetch('/api/complete_task', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({task_id: taskId})
-    });
-    
-    if (response.ok) {
-        loadTasks();
-        loadStats();
-        loadAttributes();
+    const taskElement = document.querySelector(`button[onclick*="completeTask(${taskId})"]`)?.closest('.task-item');
+    if (taskElement) taskElement.style.opacity = '0.5';
+
+    const result = await apiCall('/api/complete_task', 'POST', { task_id: taskId });
+    if (result && result.success) {
+        await fetchAndRenderTasks(currentSelectedDate);
+        await fetchAndRenderAttributes();
+        await fetchAndRenderStats();
+        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
+        // Potentially fetch milestones if completion could trigger one
+        if (Math.random() < 0.2) { // 20% chance, or on specific conditions
+           await fetchAndRenderMilestones(milestones.page);
+        }
+    } else {
+        if (taskElement) taskElement.style.opacity = '1';
+        // Error already alerted by apiCall
     }
 }
 
 async function deleteTask(taskId) {
-    if (!confirm('Delete this task?')) return;
-    
-    // For simplicity, we'll just remove from display
-    // In a full implementation, you'd add a delete endpoint
-    loadTasks();
+    if (!confirm('Are you sure you want to delete this task?')) return;
+    const result = await apiCall('/api/delete_task', 'POST', { task_id: taskId });
+    if (result && result.success) {
+        await fetchAndRenderTasks(currentSelectedDate);
+        // If task was completed, attributes and stats might need refresh
+        const deletedTask = tasks.find(t => t.id === taskId); // Requires tasks to be up-to-date or passed
+        if (deletedTask && deletedTask.completed && !deletedTask.is_negative_habit) {
+            await fetchAndRenderAttributes();
+        }
+        await fetchAndRenderStats();
+        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
+    }
 }
 
-// Update subskills when attribute changes
-document.getElementById('taskAttribute').addEventListener('change', function() {
-    const selectedAttr = attributes.find(a => a.name === this.value);
-    const subskillSelect = document.getElementById('taskSubskill');
-    
-    subskillSelect.innerHTML = '<option value="">Select Subskill</option>';
-    
-    if (selectedAttr && selectedAttr.subskills) {
-        selectedAttr.subskills.forEach(sub => {
-            const option = document.createElement('option');
-            option.value = sub.name;
-            option.textContent = `${sub.name} (Lv ${sub.level})`;
-            subskillSelect.appendChild(option);
-        });
+async function deleteRecurringTask(rtId) {
+    if (!confirm('Delete this recurring habit permanently? This will not delete already generated tasks.')) return;
+    const result = await apiCall(`/api/recurring_tasks/${rtId}`, 'DELETE');
+    if (result && result.success) {
+        await fetchAndRenderRecurringTasks();
+        // No need to refresh daily tasks unless backend deletes future generated ones
     }
-});
+}
 
-// AI Functions
-async function generateQuest() {
+async function toggleRecurringActive(rtId) {
+    const result = await apiCall(`/api/recurring_tasks/${rtId}/toggle_active`, 'POST');
+    if (result && result.success) {
+        await fetchAndRenderRecurringTasks();
+        // Refresh tasks for current day as it might add/remove a task if today is affected
+        await fetchAndRenderTasks(currentSelectedDate);
+    }
+}
+
+async function completeQuest(questId) {
+    if (!confirm('Mark this quest as completed?')) return;
+    const result = await apiCall('/api/complete_quest', 'POST', { quest_id: questId });
+    if (result && result.success) {
+        await fetchAndRenderQuests();
+        await fetchAndRenderAttributes(); // XP from quest
+        await fetchAndRenderStats();      // Quest counts, XP
+        await fetchAndRenderMilestones(milestones.page); // Quest completion is a milestone
+        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
+    }
+}
+
+async function deleteMilestone(milestoneId) {
+    if (!confirm('Are you sure you want to delete this achievement?')) return;
+    const result = await apiCall('/api/delete_milestone', 'POST', { milestone_id: milestoneId });
+    if (result && result.success) {
+        await fetchAndRenderMilestones(milestones.page);
+    }
+}
+
+// --- API Call Wrapper ---
+async function apiCall(endpoint, method = 'GET', body = null) {
+    const options = { method, headers: {} };
+    if (body) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+    }
+    try {
+        const response = await fetch(endpoint, options);
+        const responseData = await response.json(); // Try to parse JSON regardless of ok status
+        if (!response.ok) {
+            console.error(`API Error (${response.status}) ${endpoint}:`, responseData);
+            alert(`Error: ${responseData.error || responseData.message || response.statusText}`);
+            return null;
+        }
+        return responseData;
+    } catch (error) {
+        console.error('Fetch API Error:', error, 'Endpoint:', endpoint);
+        alert('A network or unexpected error occurred. Please check the console.');
+        return null;
+    }
+}
+
+// --- Fetch and Render Specific Data Sections ---
+async function fetchAndRenderAttributes() {
+    attributes = await apiCall('/api/attributes') || [];
+    renderAttributes();
+    populateAttributeDropdowns();
+}
+
+async function fetchAndRenderTasks(date) {
+    tasks = await apiCall(`/api/tasks?date=${date}`) || [];
+    renderTasks(date);
+}
+
+async function fetchAndRenderStats() {
+    characterStats = await apiCall('/api/stats') || {};
+    renderCharacterStats();
+}
+
+async function fetchAndRenderRecurringTasks() {
+    recurringTasks = await apiCall('/api/recurring_tasks') || [];
+    renderRecurringTasks();
+}
+
+async function fetchAndRenderQuests() {
+    quests = await apiCall('/api/quests') || [];
+    renderQuests();
+}
+
+async function fetchAndRenderMilestones(page) {
+    const data = await apiCall(`/api/milestones?page=${page}&per_page=${milestones.perPage}`);
+    if (data) {
+        milestones.data = data.milestones;
+        milestones.page = data.current_page;
+        milestones.totalPages = data.pages;
+        renderMilestones();
+        renderPagination('milestones-pagination', 'milestones-pagination-info', milestones, fetchAndRenderMilestones);
+    }
+}
+
+async function fetchAndRenderDailyNarrative(date, forceRegenerate = false) {
     const apiKey = localStorage.getItem('openai_api_key');
-    if (!apiKey) {
-        document.getElementById('apiKeyModal').style.display = 'block';
+    let data;
+    
+    if (forceRegenerate && apiKey) {
+        data = await apiCall('/api/generate_narrative', 'POST', { date, api_key: apiKey });
+    } else {
+        data = await apiCall(`/api/narrative?date=${date}`);
+    }
+    
+    if (data) {
+        renderDailyNarrative(data.narrative, data.date || date);
+        if (forceRegenerate) { // If regenerated, refresh history
+            await fetchAndRenderNarrativeHistory(1);
+        }
+    }
+}
+
+async function fetchAndRenderNarrativeHistory(page) {
+    const data = await apiCall(`/api/narratives?page=${page}&per_page=${narratives.perPage}`);
+    if (data) {
+        narratives.data = data.narratives;
+        narratives.page = data.current_page;
+        narratives.totalPages = data.pages;
+        renderNarrativeHistory();
+        renderPagination('narratives-pagination', 'narratives-pagination-info', narratives, fetchAndRenderNarrativeHistory);
+    }
+}
+
+async function fetchAndRenderHeatmap(year, month) { // month is 1-indexed
+    const data = await apiCall(`/api/heatmap?year=${year}&month=${month}`);
+    if (data) {
+        renderHeatmap(year, month, data);
+    }
+}
+
+async function fetchAndRenderAttributeHistory() {
+    const data = await apiCall('/api/attribute_history?days=30'); // Fetch last 30 days
+    if (data) {
+        renderAttributeHistory(data);
+    }
+}
+
+// --- DOM Rendering Functions ---
+function renderAttributes() {
+    const container = document.getElementById('attributes-container');
+    container.innerHTML = '';
+    if (!attributes || attributes.length === 0) {
+        container.innerHTML = '<p>No attributes data.</p>'; return;
+    }
+    attributes.forEach(attr => {
+        const attrEl = document.createElement('div');
+        attrEl.className = 'attribute-progress';
+        attrEl.innerHTML = `
+            <div>
+                <span>${attr.name}</span>
+                <span class="attribute-level">Lvl ${attr.level}</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-bar-fill" style="width: ${attr.progress_percent}%" title="${attr.xp_progress}/${attr.xp_needed} XP">${Math.round(attr.progress_percent)}%</div>
+            </div>
+            <small>Total XP: ${attr.total_xp}</small>
+        `;
+        if (attr.subskills && attr.subskills.length > 0) {
+            attr.subskills.filter(sub => sub.total_xp > 0).forEach(sub => { // Only show subskills with XP
+                const subEl = document.createElement('div');
+                subEl.className = 'subskill-progress';
+                subEl.innerHTML = `
+                    <div>
+                        <span>${sub.name}</span>
+                        <span class="subskill-level">Lvl ${sub.level}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" style="width: ${sub.progress_percent}%" title="${sub.xp_progress}/${sub.xp_needed} XP">${Math.round(sub.progress_percent)}%</div>
+                    </div>
+                `;
+                attrEl.appendChild(subEl);
+            });
+        }
+        container.appendChild(attrEl);
+    });
+}
+
+function renderTasks(dateToList = currentSelectedDate) {
+    const container = document.getElementById('task-list');
+    container.innerHTML = ''; // Clear previous tasks
+
+    if (!tasks || tasks.length === 0) {
+        container.innerHTML = '<li>No tasks for this day.</li>'; return;
+    }
+    tasks.forEach(task => {
+        const taskEl = document.createElement('li');
+        taskEl.className = `task-item ${task.completed ? 'task-completed' : ''} ${task.is_negative_habit ? 'negative-habit' : ''}`;
+        
+        let attributeText = task.attribute ? `[${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}]` : '';
+        let xpText = task.is_negative_habit ? '' : `(${task.xp} XP)`;
+        
+        taskEl.innerHTML = `
+            <div>
+                ${task.description} ${attributeText} ${xpText}
+                <small>Stress: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}</small>
+            </div>
+            <div class="task-actions">
+                ${!task.completed ? `<button onclick="completeTask(${task.id})" class="btn-success btn-small">✓ Complete</button>` : '<span class="completion-status">✓ Done!</span>'}
+                <button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑 Delete</button>
+            </div>
+        `;
+        container.appendChild(taskEl);
+    });
+}
+
+function renderCharacterStats() {
+    const container = document.getElementById('character-stats');
+    container.innerHTML = ''; // Clear
+    const levelDisplay = document.getElementById('character-level');
+
+    if (Object.keys(characterStats).length === 0) {
+        container.innerHTML = '<p>Loading stats...</p>'; 
+        levelDisplay.textContent = 'Level ?';
         return;
     }
     
-    const btn = document.getElementById('generateQuestBtn');
-    btn.disabled = true;
-    btn.textContent = 'Generating...';
-    
-    try {
-        const response = await fetch('/api/generate_quest', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({api_key: apiKey})
-        });
-        
-        const quest = await response.json();
-        
-        if (quest.error) {
-            alert('Error generating quest: ' + quest.error);
-        } else {
-            alert(`New Quest Generated!\n\n${quest.title}\n\n${quest.description}\n\nDifficulty: ${quest.difficulty}\nReward: ${quest.xp_reward} XP`);
-            loadQuests();
+    const totalXp = characterStats['Total XP'] || 0;
+    // More gradual leveling, e.g. 1000 XP for level 2, then sqrt scaling
+    const overallLevel = totalXp < 1000 ? 1 : Math.floor(1 + Math.sqrt((totalXp - 1000) / 750) + 1); 
+    levelDisplay.textContent = `Level ${overallLevel}`;
+
+    for (const [stat, value] of Object.entries(characterStats)) {
+        if (stat === 'Stress') {
+            const stressFill = document.getElementById('stress-fill');
+            const stressPercent = Math.min(100, Math.max(0, value)); // Assuming stress is already 0-100
+            stressFill.style.width = `${stressPercent}%`;
+            stressFill.textContent = `${value}%`;
+            stressFill.title = `Stress: ${value}%`;
+        } else if (stat !== 'Total XP') { 
+            const statEl = document.createElement('div');
+            statEl.className = 'stat-entry';
+            statEl.innerHTML = `<strong>${stat.replace(/([A-Z])/g, ' $1').trim()}:</strong> ${value}`; // Add spaces to stat names
+            container.appendChild(statEl);
         }
-    } catch (error) {
-        alert('Error generating quest');
     }
-    
-    btn.disabled = false;
-    btn.textContent = 'Generate New Quest (AI)';
+     // Explicitly add Total XP if not handled by loop
+    const totalXPEl = document.createElement('div');
+    totalXPEl.className = 'stat-entry';
+    totalXPEl.innerHTML = `<strong>Total XP:</strong> ${totalXp}`;
+    container.appendChild(totalXPEl);
 }
 
-async function generateNarrative() {
-    const apiKey = localStorage.getItem('openai_api_key');
-    if (!apiKey) {
-        document.getElementById('apiKeyModal').style.display = 'block';
-        return;
+function renderRecurringTasks() {
+    const container = document.getElementById('recurring-tasks-list');
+    container.innerHTML = '';
+    if (!recurringTasks || recurringTasks.length === 0) {
+        container.innerHTML = '<li>No recurring habits set.</li>'; return;
     }
-    
-    const btn = document.getElementById('generateNarrativeBtn');
-    btn.disabled = true;
-    btn.textContent = 'Generating...';
-    
-    try {
-        const response = await fetch('/api/generate_narrative', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                api_key: apiKey,
-                date: currentDate
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-            alert('Error generating narrative: ' + data.error);
-        } else {
-            document.getElementById('narrativeContent').innerHTML = `<p>${data.narrative}</p>`;
-        }
-    } catch (error) {
-        alert('Error generating narrative');
-    }
-    
-    btn.disabled = false;
-    btn.textContent = 'Generate Narrative (AI)';
+    recurringTasks.forEach(rt => {
+        const el = document.createElement('li');
+        el.className = `task-item ${rt.is_negative_habit ? 'negative-habit' : ''} ${!rt.is_active ? 'task-completed' : ''}`; // task-completed class dims it
+        let attributeText = rt.attribute_name ? `[${rt.attribute_name}]` : '';
+        el.innerHTML = `
+            <div>
+                ${rt.description} ${attributeText}
+                <small>
+                    (XP: ${rt.xp_value}, Stress: ${rt.stress_effect > 0 ? '+' : ''}${rt.stress_effect})
+                    ${rt.last_added_date ? `<br>Last auto-added: ${rt.last_added_date}` : ''}
+                </small>
+            </div>
+            <div class="task-actions">
+                <button onclick="toggleRecurringActive(${rt.recurring_task_id})" class="${rt.is_active ? 'btn-warning' : 'btn-success'} btn-small">
+                    ${rt.is_active ? '⏸ Pause' : '▶ Resume'}
+                </button>
+                <button onclick="deleteRecurringTask(${rt.recurring_task_id})" class="btn-danger btn-small">
+                    🗑 Delete
+                </button>
+            </div>
+        `;
+        container.appendChild(el);
+    });
 }
 
-// PWA Support
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/static/sw.js');
+function renderQuests() {
+    const container = document.getElementById('quests-container');
+    container.innerHTML = '';
+    const activeQuests = quests.filter(q => q.status === 'Active');
+    const completedQuests = quests.filter(q => q.status === 'Completed').sort((a,b) => new Date(b.completed_date) - new Date(a.completed_date)).slice(0,3);
+
+    if (activeQuests.length === 0 && completedQuests.length === 0) {
+        container.innerHTML = '<p>No quests here. Time for an adventure!</p>'; return;
+    }
+
+    if (activeQuests.length > 0) {
+        const activeHeader = document.createElement('h4'); activeHeader.className = 'section-subheader'; activeHeader.textContent = 'Active Quests'; container.appendChild(activeHeader);
+        activeQuests.forEach(q => container.appendChild(createQuestCard(q)));
+    }
+    if (completedQuests.length > 0) {
+        const completedHeader = document.createElement('h4'); completedHeader.className = 'section-subheader'; completedHeader.textContent = 'Recently Completed'; container.appendChild(completedHeader);
+        completedQuests.forEach(q => container.appendChild(createQuestCard(q)));
+    }
 }
 
-// Install prompt
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    // Show install button
-    const installBtn = document.createElement('button');
-    installBtn.className = 'install-button';
-    installBtn.textContent = 'Install App';
-    installBtn.onclick = async () => {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-            installBtn.style.display = 'none';
-        }
-    };
-    document.body.appendChild(installBtn);
-    installBtn.style.display = 'block';
-});
+function createQuestCard(quest) {
+    const card = document.createElement('div');
