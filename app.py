@@ -139,6 +139,10 @@ class RecurringTask(db.Model):
     start_date = db.Column(db.String(10), nullable=False)
     last_added_date = db.Column(db.String(10))
     is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationships to access attribute and subskill objects
+    attribute = db.relationship('Attribute', backref='recurring_tasks')
+    subskill = db.relationship('Subskill', backref='recurring_tasks')
 
 class DailyStat(db.Model):
     id = db.Column(db.Integer, primary_key=True)
