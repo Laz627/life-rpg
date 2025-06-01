@@ -1227,11 +1227,16 @@ def api_reset_day():
 def add_negative_habit_column():
     """Add the new negative_habit_done column to existing tasks table"""
     try:
-        # Add the new column using raw SQL
-        db.engine.execute('ALTER TABLE task ADD COLUMN negative_habit_done BOOLEAN DEFAULT NULL')
+        # Use the correct SQLAlchemy 2.x syntax
+        with db.engine.connect() as connection:
+            connection.execute(db.text('ALTER TABLE task ADD COLUMN negative_habit_done BOOLEAN DEFAULT NULL'))
+            connection.commit()
         return "Successfully added negative_habit_done column to task table!"
     except Exception as e:
-        return f"Error adding column (it might already exist): {str(e)}"
+        # Check if column already exists (common error)
+        if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+            return "Column already exists - no action needed!"
+        return f"Error adding column: {str(e)}"
 
 # Initialize database tables
 with app.app_context():
