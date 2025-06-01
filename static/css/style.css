@@ -216,6 +216,16 @@ header h1 {
     display: none;
 }
 
+.task-item.task-skipped {
+    background-color: #fff3e0; /* Light orange */
+    opacity: 0.8;
+    border-left: 4px solid var(--neutral-color);
+}
+
+.task-item.task-skipped .task-description {
+    text-decoration: line-through;
+    color: var(--text-light-color);
+}
 
 .task-item div:first-child { /* Task description area */
     flex-grow: 1;
@@ -239,6 +249,20 @@ header h1 {
     font-size: 0.9em;
 }
 
+/* Negative habit specific styling */
+.task-actions.negative-habit-actions {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 140px;
+    gap: 5px;
+}
+
+.task-actions.negative-habit-actions button {
+    margin: 2px 0;
+    text-align: center;
+    font-size: 0.8em;
+    padding: 4px 8px;
+}
 
 .card-actions {
     margin-top: auto; /* Pushes actions to the bottom of the card */
@@ -354,6 +378,15 @@ input:focus, select:focus, textarea:focus {
     border-color: var(--negative-color);
 }
 
+/* Quest description enhancement */
+.quest-desc-container {
+    position: relative;
+}
+
+.enhance-desc-btn {
+    margin-top: 5px;
+    font-size: 0.85em;
+}
 
 /* Attribute & Subskill Progress */
 .attribute-progress, .subskill-progress {
@@ -624,21 +657,6 @@ input:focus, select:focus, textarea:focus {
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    body { padding: 10px; }
-    header { flex-direction: column; text-align: center; gap: 10px; }
-    header h1 { font-size: 2.2rem; }
-    .character-level-badge { font-size: 1.2rem; }
-    .dashboard { grid-template-columns: 1fr; } /* Stack cards */
-    .card { padding: 15px; }
-    .card-header h2 { font-size: 1.5rem; }
-    .scrollable-content { max-height: 300px; }
-    .date-picker-container { flex-direction: column; align-items: stretch; }
-    #selected-date { width: 100%; }
-    .heatmap-controls { flex-direction: column; gap: 5px; }
-}
-
 /* API Key Modal Styles */
 .modal {
     display: none;
@@ -704,4 +722,33 @@ input:focus, select:focus, textarea:focus {
     font-size: 12px;
     color: var(--text-light-color);
     margin-top: 20px;
+}
+
+/* Stats highlighting */
+.stat-entry {
+    padding: 5px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.stat-entry:last-child {
+    border-bottom: none;
+}
+
+.stat-entry strong {
+    color: var(--secondary-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    body { padding: 10px; }
+    header { flex-direction: column; text-align: center; gap: 10px; }
+    header h1 { font-size: 2.2rem; }
+    .character-level-badge { font-size: 1.2rem; }
+    .dashboard { grid-template-columns: 1fr; } /* Stack cards */
+    .card { padding: 15px; }
+    .card-header h2 { font-size: 1.5rem; }
+    .scrollable-content { max-height: 300px; }
+    .date-picker-container { flex-direction: column; align-items: stretch; }
+    #selected-date { width: 100%; }
+    .heatmap-controls { flex-direction: column; gap: 5px; }
 }
