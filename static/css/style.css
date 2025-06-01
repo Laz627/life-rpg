@@ -1,0 +1,291 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: #0f0f23;
+    color: #e0e0e0;
+    line-height: 1.6;
+    padding-bottom: 20px;
+}
+
+header {
+    background: #1a1a2e;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+h1 {
+    color: #4a7c7e;
+    margin-bottom: 10px;
+}
+
+main {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 0 20px;
+}
+
+.card {
+    background: #16213e;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.card h2 {
+    color: #4a7c7e;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #4a7c7e;
+    padding-bottom: 10px;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.8);
+}
+
+.modal-content {
+    background-color: #1a1a2e;
+    margin: 10% auto;
+    padding: 30px;
+    border: 1px solid #4a7c7e;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 500px;
+    text-align: center;
+}
+
+.modal-content h2 {
+    color: #4a7c7e;
+    margin-bottom: 20px;
+}
+
+.modal-content input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    background: #0f0f23;
+    border: 1px solid #4a7c7e;
+    color: #e0e0e0;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+.modal-content button {
+    background: #4a7c7e;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    margin: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.modal-content button:hover {
+    background: #5a8c8e;
+}
+
+.help-text {
+    font-size: 14px;
+    color: #888;
+    margin: 10px 0;
+}
+
+.info-text {
+    font-size: 12px;
+    color: #666;
+    margin-top: 20px;
+}
+
+/* Form Styles */
+#addTaskForm {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+#addTaskForm input,
+#addTaskForm select {
+    flex: 1;
+    min-width: 150px;
+    padding: 10px;
+    background: #0f0f23;
+    border: 1px solid #4a7c7e;
+    color: #e0e0e0;
+    border-radius: 5px;
+}
+
+#addTaskForm button {
+    background: #4a7c7e;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#addTaskForm button:hover {
+    background: #5a8c8e;
+}
+
+/* Task Styles */
+.task-item {
+    background: #0f0f23;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid #333;
+}
+
+.task-item.completed {
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+.task-info {
+    flex: 1;
+}
+
+.task-description {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.task-meta {
+    font-size: 14px;
+    color: #888;
+}
+
+.task-actions button {
+    background: #4a7c7e;
+    color: white;
+    border: none;
+    padding: 5px 15px;
+    margin-left: 5px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.task-actions button:hover {
+    background: #5a8c8e;
+}
+
+/* Attribute Styles */
+.attribute-item {
+    background: #0f0f23;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 5px;
+    border: 1px solid #333;
+}
+
+.attribute-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.level-badge {
+    background: #4a7c7e;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 14px;
+}
+
+.progress-bar {
+    background: #333;
+    height: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-fill {
+    background: linear-gradient(90deg, #4a7c7e, #5a8c8e);
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+/* Quest Styles */
+.quest-item {
+    background: #0f0f23;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 5px;
+    border: 1px solid #333;
+}
+
+.quest-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.quest-difficulty {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.difficulty-Easy { background: #4CAF50; }
+.difficulty-Medium { background: #FF9800; }
+.difficulty-Hard { background: #F44336; }
+.difficulty-Epic { background: #9C27B0; }
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    main {
+        padding: 0 10px;
+    }
+    
+    .card {
+        padding: 15px;
+    }
+    
+    #addTaskForm {
+        flex-direction: column;
+    }
+    
+    #addTaskForm input,
+    #addTaskForm select,
+    #addTaskForm button {
+        width: 100%;
+    }
+}
+
+/* PWA Install Button */
+.install-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #4a7c7e;
+    color: white;
+    border: none;
+    padding: 15px 25px;
+    border-radius: 50px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    cursor: pointer;
+    display: none;
+}
