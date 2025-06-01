@@ -1,51 +1,645 @@
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Nunito:wght@400;600;700&display=swap');
+
+:root {
+    --primary-color: #6a1b9a; /* Deep Purple */
+    --secondary-color: #4a148c; /* Darker Purple */
+    --accent-color: #ab47bc; /* Lighter Purple */
+    --positive-color: #2e7d32; /* Green */
+    --negative-color: #c62828; /* Red */
+    --neutral-color: #fbc02d; /* Yellow for quests/warnings */
+    
+    --background-color: #f5f5f5; /* Light Gray */
+    --card-background-color: #ffffff;
+    --text-color: #333333;
+    --text-light-color: #666666;
+    --border-color: #e0e0e0; /* Lighter border */
+    --input-background: #fff;
+    --input-border: #ccc;
+
+    --font-primary: 'Nunito', sans-serif;
+    --font-headings: 'MedievalSharp', cursive;
+
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --button-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    --border-radius: 6px;
+}
+
 * {
+    box-sizing: border-box;
     margin: 0;
     padding: 0;
-    box-sizing: border-box;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-    background: #0f0f23;
-    color: #e0e0e0;
+    font-family: var(--font-primary);
+    background-color: var(--background-color);
+    color: var(--text-color);
     line-height: 1.6;
-    padding-bottom: 20px;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1300px;
+    margin: 0 auto;
 }
 
 header {
-    background: #1a1a2e;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
     padding: 20px;
-    text-align: center;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    background-color: var(--card-background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
 }
 
-h1 {
-    color: #4a7c7e;
-    margin-bottom: 10px;
+header h1 {
+    font-family: var(--font-headings);
+    color: var(--primary-color);
+    font-size: 2.8rem;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
 }
 
-main {
-    max-width: 800px;
-    margin: 20px auto;
-    padding: 0 20px;
+.character-level-badge {
+    background-color: var(--accent-color);
+    color: white;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-family: var(--font-headings);
+    font-size: 1.4rem;
+    box-shadow: var(--button-shadow);
+}
+
+.dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 25px;
 }
 
 .card {
-    background: #16213e;
-    border-radius: 10px;
+    background-color: var(--card-background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
     padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
 }
 
-.card h2 {
-    color: #4a7c7e;
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 15px;
-    border-bottom: 2px solid #4a7c7e;
+    border-bottom: 1px solid var(--border-color);
     padding-bottom: 10px;
 }
 
-/* Modal Styles */
+.card-header h2 {
+    font-family: var(--font-headings);
+    color: var(--secondary-color);
+    font-size: 1.8rem;
+    margin: 0;
+}
+
+.card-icon {
+    font-size: 1.6rem;
+    color: var(--accent-color);
+}
+
+.card-content {
+    flex-grow: 1; /* Allows content to fill space, pushing actions down */
+}
+
+.scrollable-content {
+    max-height: 350px; /* Adjust as needed */
+    overflow-y: auto;
+    padding-right: 8px; /* For scrollbar */
+    margin-bottom: 15px;
+}
+
+/* For better scrollbar styling (optional, webkit specific) */
+.scrollable-content::-webkit-scrollbar {
+    width: 8px;
+}
+.scrollable-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+.scrollable-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
+}
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+}
+
+
+.stress-section {
+    margin-top: 15px;
+}
+.stress-meter {
+    height: 22px;
+    background-color: #e9ecef;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    margin-top: 5px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.stress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--positive-color), var(--negative-color)); /* Green to Red */
+    border-radius: var(--border-radius); /* Match parent */
+    transition: width 0.5s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.date-picker-container {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f9f9f9;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.date-picker-container label {
+    font-weight: 600;
+    color: var(--secondary-color);
+}
+#selected-date {
+    padding: 8px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius);
+    font-size: 0.95em;
+}
+
+.task-list {
+    list-style-type: none;
+    padding: 0;
+}
+
+.task-item {
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: var(--border-radius);
+    background-color: #fdfdfd;
+    border: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s ease;
+}
+.task-item:hover {
+    background-color: #f7f7f7;
+}
+
+.task-item.negative-habit {
+    border-left: 4px solid var(--negative-color);
+    background-color: #ffebee; /* Light red */
+}
+.task-item.task-completed {
+    text-decoration: line-through;
+    opacity: 0.7;
+    background-color: #e8f5e9; /* Light green */
+}
+.task-item.task-completed .task-actions button:first-child { /* Hide complete button */
+    display: none;
+}
+
+
+.task-item div:first-child { /* Task description area */
+    flex-grow: 1;
+    margin-right: 10px;
+}
+.task-item small {
+    display: block;
+    color: var(--text-light-color);
+    font-size: 0.85em;
+    margin-top: 3px;
+}
+
+.task-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center; /* Vertically align buttons/text */
+}
+.task-actions .completion-status {
+    color: var(--positive-color);
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+
+.card-actions {
+    margin-top: auto; /* Pushes actions to the bottom of the card */
+    padding-top: 15px; /* Space above actions if content is short */
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start; /* Or flex-end / center */
+}
+
+button, .btn { /* General button styling */
+    padding: 10px 18px;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-family: var(--font-primary);
+    font-weight: 600;
+    font-size: 0.95em;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: var(--button-shadow);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+button:hover, .btn:hover {
+    opacity: 0.9;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+}
+button:active, .btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.btn-primary { background-color: var(--primary-color); color: white; }
+.btn-secondary { background-color: #6c757d; color: white; } /* Gray */
+.btn-success { background-color: var(--positive-color); color: white; }
+.btn-danger { background-color: var(--negative-color); color: white; }
+.btn-warning { background-color: var(--neutral-color); color: var(--text-color); }
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.85em;
+}
+
+.form-container {
+    margin-top: 20px;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: #f9f9f9;
+}
+.add-entity-form h4 {
+    font-family: var(--font-headings);
+    color: var(--secondary-color);
+    margin-bottom: 15px;
+    font-size: 1.4em;
+}
+.form-group {
+    margin-bottom: 15px;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: var(--text-light-color);
+}
+input[type="text"],
+input[type="date"],
+select,
+textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius);
+    font-family: var(--font-primary);
+    font-size: 1em;
+    background-color: var(--input-background);
+}
+input[type="range"] {
+    width: 100%;
+}
+textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(171, 71, 188, 0.25); /* Accent color focus ring */
+}
+
+.radio-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 5px;
+}
+.radio-option {
+    padding: 8px 15px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: var(--input-background);
+    font-size: 0.9em;
+}
+.radio-option.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+.radio-option.negative.selected { /* Specific for negative option */
+    background-color: var(--negative-color);
+    border-color: var(--negative-color);
+}
+
+
+/* Attribute & Subskill Progress */
+.attribute-progress, .subskill-progress {
+    margin-bottom: 18px;
+}
+.attribute-progress > div:first-child, .subskill-progress > div:first-child { /* Name and Level */
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+.attribute-level, .subskill-level {
+    font-family: var(--font-headings);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.85em;
+    background-color: var(--accent-color);
+    color: white;
+}
+.subskill-progress {
+    margin-left: 20px;
+    padding-left: 15px;
+    border-left: 2px solid var(--border-color);
+    font-size: 0.95em;
+}
+.subskill-level {
+    background-color: var(--secondary-color);
+    font-size: 0.8em;
+}
+
+.progress-bar {
+    height: 18px;
+    background-color: #e9ecef;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    margin-top: 3px;
+}
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--secondary-color), var(--accent-color));
+    border-radius: var(--border-radius); /* Keep if you want rounded fill inside */
+    transition: width 0.4s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.75em;
+    font-weight: 600;
+}
+.attribute-progress small, .subskill-progress small {
+    font-size: 0.8em;
+    color: var(--text-light-color);
+    display: block;
+    text-align: right;
+    margin-top: 2px;
+}
+.attribute-chart-container {
+    margin-top: 20px;
+    height: 250px; /* Adjust as needed */
+}
+
+
+/* Quests Card */
+.quest-card {
+    padding: 15px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    position: relative;
+    background-color: #fff;
+}
+.quest-title {
+    font-family: var(--font-headings);
+    font-size: 1.25em;
+    color: var(--secondary-color);
+    margin-bottom: 5px;
+}
+.quest-difficulty-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--border-radius);
+    font-size: 0.75em;
+    color: white;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.quest-difficulty-Easy { background-color: var(--positive-color); }
+.quest-difficulty-Medium { background-color: var(--neutral-color); color: var(--text-color); }
+.quest-difficulty-Hard { background-color: #ef6c00; } /* Orange */
+.quest-difficulty-Epic { background-color: var(--negative-color); }
+
+.quest-description {
+    font-size: 0.9em;
+    color: var(--text-light-color);
+    margin-bottom: 8px;
+    white-space: pre-wrap; /* Respect newlines in description */
+}
+.quest-details {
+    font-size: 0.85em;
+    color: var(--text-light-color);
+    margin-bottom: 10px;
+}
+.quest-details span { margin-right: 10px; }
+.quest-details .quest-attribute-tag {
+    background-color: #e8eaf6; /* Light Indigo */
+    color: var(--secondary-color);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+.quest-details .quest-xp-tag {
+    background-color: #e0f2f1; /* Light Teal */
+    color: #00796b; /* Teal */
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+.quest-card.quest-completed-card {
+    opacity: 0.7;
+    background-color: #f1f8e9; /* Lightest green */
+    border-left: 4px solid var(--positive-color);
+}
+
+
+/* Milestones & Narratives */
+.milestone, .narrative-item {
+    padding: 15px;
+    margin-bottom: 12px;
+    border-left: 4px solid var(--accent-color);
+    border-radius: 0 var(--border-radius) var(--border-radius) 0;
+    background-color: #f9f9f9;
+    position: relative;
+}
+.milestone-title, .narrative-date strong {
+    font-family: var(--font-headings);
+    font-weight: bold;
+    color: var(--primary-color);
+    font-size: 1.2em;
+    margin-bottom: 5px;
+}
+.milestone-description, .narrative-content {
+    font-size: 0.95em;
+    color: var(--text-color);
+    line-height: 1.5;
+}
+.milestone-date, .narrative-item .narrative-date {
+    font-size: 0.8em;
+    color: var(--text-light-color);
+    margin-top: 8px;
+}
+.narrative { /* For the main daily narrative display */
+    padding: 15px;
+    background-color: #fef9e7; /* Light yellow parchment */
+    border: 1px solid #f9e79f;
+    border-radius: var(--border-radius);
+    margin-bottom: 15px;
+}
+.narrative-content {
+    white-space: pre-wrap;
+}
+.section-subheader {
+    font-family: var(--font-headings);
+    color: var(--secondary-color);
+    font-size: 1.3em;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    gap: 5px;
+}
+.pagination button {
+    padding: 6px 12px;
+}
+.pagination-info {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 0.9em;
+    color: var(--text-light-color);
+}
+
+
+/* Heatmap */
+.heatmap-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding: 8px;
+    background-color: #f0f0f0;
+    border-radius: var(--border-radius);
+}
+#current-heatmap-month-year {
+    font-weight: 600;
+    font-size: 1.1em;
+    color: var(--secondary-color);
+}
+.calendar-heatmap-display-area {
+    width: 100%;
+    overflow-x: auto; /* In case table is too wide */
+}
+.calendar-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed; /* Ensures columns are evenly distributed */
+}
+.calendar-table th {
+    background-color: var(--accent-color);
+    color: white;
+    padding: 10px 5px;
+    text-align: center;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+.calendar-day, .calendar-empty-day {
+    height: 90px; /* Adjust for content */
+    border: 1px solid var(--border-color);
+    padding: 6px;
+    vertical-align: top;
+    text-align: right;
+    font-size: 0.9em;
+    position: relative; /* For tooltip positioning */
+}
+.calendar-empty-day {
+    background-color: #f9f9f9;
+}
+.calendar-day-number {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: var(--text-light-color);
+}
+.calendar-day-data {
+    font-size: 0.8em;
+    text-align: left;
+    margin-top: 5px;
+    color: var(--text-color);
+    line-height: 1.3;
+}
+.calendar-day-data br { display: block; margin-bottom: 2px; }
+
+/* Intensity levels for heatmap days */
+.day-level-0 { background-color: #fafafa; } /* Very light or no activity */
+.day-level-1 { background-color: #c6e48b; } /* Lightest green */
+.day-level-2 { background-color: #7bc96f; }
+.day-level-3 { background-color: #239a3b; }
+.day-level-4 { background-color: #196127; } /* Darkest green */
+
+
+.tooltip {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    font-size: 0.9em;
+    pointer-events: none; /* Important */
+    z-index: 1000;
+    display: none; /* Hidden by default */
+    white-space: nowrap;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    body { padding: 10px; }
+    header { flex-direction: column; text-align: center; gap: 10px; }
+    header h1 { font-size: 2.2rem; }
+    .character-level-badge { font-size: 1.2rem; }
+    .dashboard { grid-template-columns: 1fr; } /* Stack cards */
+    .card { padding: 15px; }
+    .card-header h2 { font-size: 1.5rem; }
+    .scrollable-content { max-height: 300px; }
+    .date-picker-container { flex-direction: column; align-items: stretch; }
+    #selected-date { width: 100%; }
+    .heatmap-controls { flex-direction: column; gap: 5px; }
+}
+
+/* API Key Modal Styles */
 .modal {
     display: none;
     position: fixed;
@@ -58,234 +652,56 @@ main {
 }
 
 .modal-content {
-    background-color: #1a1a2e;
+    background-color: var(--card-background-color);
     margin: 10% auto;
     padding: 30px;
-    border: 1px solid #4a7c7e;
-    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
     width: 90%;
     max-width: 500px;
     text-align: center;
 }
 
 .modal-content h2 {
-    color: #4a7c7e;
+    color: var(--primary-color);
     margin-bottom: 20px;
+    font-family: var(--font-headings);
 }
 
 .modal-content input {
     width: 100%;
     padding: 10px;
     margin: 10px 0;
-    background: #0f0f23;
-    border: 1px solid #4a7c7e;
-    color: #e0e0e0;
-    border-radius: 5px;
+    background: var(--input-background);
+    border: 1px solid var(--input-border);
+    color: var(--text-color);
+    border-radius: var(--border-radius);
     font-size: 16px;
 }
 
 .modal-content button {
-    background: #4a7c7e;
+    background: var(--primary-color);
     color: white;
     border: none;
     padding: 10px 20px;
     margin: 5px;
-    border-radius: 5px;
+    border-radius: var(--border-radius);
     cursor: pointer;
     font-size: 16px;
 }
 
 .modal-content button:hover {
-    background: #5a8c8e;
+    opacity: 0.9;
 }
 
 .help-text {
     font-size: 14px;
-    color: #888;
+    color: var(--text-light-color);
     margin: 10px 0;
 }
 
 .info-text {
     font-size: 12px;
-    color: #666;
+    color: var(--text-light-color);
     margin-top: 20px;
-}
-
-/* Form Styles */
-#addTaskForm {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-#addTaskForm input,
-#addTaskForm select {
-    flex: 1;
-    min-width: 150px;
-    padding: 10px;
-    background: #0f0f23;
-    border: 1px solid #4a7c7e;
-    color: #e0e0e0;
-    border-radius: 5px;
-}
-
-#addTaskForm button {
-    background: #4a7c7e;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-#addTaskForm button:hover {
-    background: #5a8c8e;
-}
-
-/* Task Styles */
-.task-item {
-    background: #0f0f23;
-    padding: 15px;
-    margin: 10px 0;
-    border-radius: 5px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px solid #333;
-}
-
-.task-item.completed {
-    opacity: 0.6;
-    text-decoration: line-through;
-}
-
-.task-info {
-    flex: 1;
-}
-
-.task-description {
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.task-meta {
-    font-size: 14px;
-    color: #888;
-}
-
-.task-actions button {
-    background: #4a7c7e;
-    color: white;
-    border: none;
-    padding: 5px 15px;
-    margin-left: 5px;
-    border-radius: 3px;
-    cursor: pointer;
-}
-
-.task-actions button:hover {
-    background: #5a8c8e;
-}
-
-/* Attribute Styles */
-.attribute-item {
-    background: #0f0f23;
-    padding: 15px;
-    margin: 10px 0;
-    border-radius: 5px;
-    border: 1px solid #333;
-}
-
-.attribute-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.level-badge {
-    background: #4a7c7e;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 15px;
-    font-size: 14px;
-}
-
-.progress-bar {
-    background: #333;
-    height: 20px;
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 10px 0;
-}
-
-.progress-fill {
-    background: linear-gradient(90deg, #4a7c7e, #5a8c8e);
-    height: 100%;
-    transition: width 0.3s ease;
-}
-
-/* Quest Styles */
-.quest-item {
-    background: #0f0f23;
-    padding: 15px;
-    margin: 10px 0;
-    border-radius: 5px;
-    border: 1px solid #333;
-}
-
-.quest-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.quest-difficulty {
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: bold;
-}
-
-.difficulty-Easy { background: #4CAF50; }
-.difficulty-Medium { background: #FF9800; }
-.difficulty-Hard { background: #F44336; }
-.difficulty-Epic { background: #9C27B0; }
-
-/* Responsive Design */
-@media (max-width: 600px) {
-    main {
-        padding: 0 10px;
-    }
-    
-    .card {
-        padding: 15px;
-    }
-    
-    #addTaskForm {
-        flex-direction: column;
-    }
-    
-    #addTaskForm input,
-    #addTaskForm select,
-    #addTaskForm button {
-        width: 100%;
-    }
-}
-
-/* PWA Install Button */
-.install-button {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #4a7c7e;
-    color: white;
-    border: none;
-    padding: 15px 25px;
-    border-radius: 50px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    cursor: pointer;
-    display: none;
 }
