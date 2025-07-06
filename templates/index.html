@@ -96,7 +96,18 @@
                             <div class="radio-option negative" data-value="negative">Negative Habit</div>
                         </div>
                     </div>
-                    <div class="form-group">
+                    <!-- NEW: Numeric input fields -->
+                    <div class="form-group-row" id="task-numeric-inputs">
+                        <div class="form-group">
+                            <label for="task-numeric-value">Target Value (Optional)</label>
+                            <input type="number" id="task-numeric-value" placeholder="e.g., 30">
+                        </div>
+                        <div class="form-group">
+                            <label for="task-numeric-unit">Unit (Optional)</label>
+                            <input type="text" id="task-numeric-unit" placeholder="e.g., pages, mg, reps">
+                        </div>
+                    </div>
+                    <div class="form-group" id="task-difficulty-group">
                         <label for="task-difficulty">Difficulty:</label>
                         <select id="task-difficulty">
                             <option value="easy">Easy (10 XP)</option>
@@ -129,6 +140,28 @@
                 </div>
             </div>
 
+            <!-- NEW: Habit Progress Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Habit Progress</h2>
+                    <span class="card-icon">📈</span>
+                </div>
+                <div class="card-content">
+                    <div class="form-group">
+                        <label for="habit-progress-select">Select a habit to see its progress:</label>
+                        <select id="habit-progress-select">
+                            <option value="">-- No numeric habits tracked yet --</option>
+                        </select>
+                    </div>
+                    <div id="habit-progress-display" style="display: none;">
+                        <h4 class="section-subheader">Week-over-Week</h4>
+                        <div id="habit-progress-week" class="progress-comparison"></div>
+                        <h4 class="section-subheader">Month-over-Month</h4>
+                        <div id="habit-progress-month" class="progress-comparison"></div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Recurring Tasks Card -->
             <div class="card">
                 <div class="card-header">
@@ -166,7 +199,18 @@
                             <div class="radio-option negative" data-value="negative">Negative Habit</div>
                         </div>
                     </div>
-                    <div class="form-group">
+                    <!-- NEW: Numeric input fields -->
+                    <div class="form-group-row" id="recurring-task-numeric-inputs">
+                        <div class="form-group">
+                            <label for="recurring-task-numeric-value">Target Value (Optional)</label>
+                            <input type="number" id="recurring-task-numeric-value" placeholder="e.g., 30">
+                        </div>
+                        <div class="form-group">
+                            <label for="recurring-task-numeric-unit">Unit (Optional)</label>
+                            <input type="text" id="recurring-task-numeric-unit" placeholder="e.g., pages, mg, reps">
+                        </div>
+                    </div>
+                    <div class="form-group" id="recurring-task-difficulty-group">
                         <label for="recurring-task-difficulty">Difficulty:</label>
                         <select id="recurring-task-difficulty">
                             <option value="easy">Easy (10 XP)</option>
