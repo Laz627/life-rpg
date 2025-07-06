@@ -821,3 +821,13 @@ input:focus, select:focus, textarea:focus {
     .form-group-row { flex-direction: column; gap: 0; }
     .progress-comparison { grid-template-columns: 1fr; }
 }
+
+/* Style for the "Lower is Better" label */
+.habit-goal-label {
+    font-size: 0.7em;
+    font-family: var(--font-primary);
+    font-weight: 600;
+    color: var(--text-light-color);
+    margin-left: 10px;
+    vertical-align: middle;
+}
