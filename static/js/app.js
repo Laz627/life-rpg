@@ -988,7 +988,21 @@ function renderAttributeHistory(data) {
 function renderHabitProgress(data) {
     const weekContainer = document.getElementById('habit-progress-week');
     const monthContainer = document.getElementById('habit-progress-month');
-    const { unit } = data;
+    const { unit, is_negative } = data;
+
+    // Add a helper label for negative habits
+    const progressHeader = document.querySelector('#habit-progress-display .section-subheader');
+    if (progressHeader) {
+        let existingLabel = progressHeader.querySelector('.habit-goal-label');
+        if (existingLabel) existingLabel.remove();
+        
+        if (is_negative) {
+            const label = document.createElement('span');
+            label.className = 'habit-goal-label';
+            label.textContent = '(Goal: Lower is Better)';
+            progressHeader.appendChild(label);
+        }
+    }
 
     const formatChange = (change) => {
         if (change > 0) return `<span class="progress-change positive">▲ ${change}%</span>`;
