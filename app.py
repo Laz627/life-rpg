@@ -526,84 +526,72 @@ def api_complete_task():
     task = Task.query.filter_by(task_id=task_id, user_id=current_user.id).first()
     if not task:
         return jsonify({'success': False, 'error': 'Task not found'})
-    
     if task.is_completed:
         return jsonify({'success': False, 'error': 'Task already completed'})
-    
-    # Mark as completed
+
     task.is_completed = True
     if logged_numeric_value is not None:
         try:
             task.logged_numeric_value = float(logged_numeric_value)
         except (ValueError, TypeError):
-            return jsonify({'success': False, 'error': 'Invalid numeric value provided.'})
+            pass # Non-numeric values will be handled by the logic below
 
-    # Determine if this is a true completion or just logging a zero
-    is_true_completion = True
-    if task.logged_numeric_value is not None and task.logged_numeric_value == 0:
-        is_true_completion = False
-
-    # --- UPDATED LOGIC ---
-    if is_true_completion:
-        # Update XP if not negative habit
-        if not task.is_negative_habit and task.xp_gained > 0:
-            if task.attribute:
-                task.attribute.current_xp += task.xp_gained
-                
-                # Check for level up milestone
-                new_level = calculate_level_from_exp(task.attribute.current_xp)
-                old_level = calculate_level_from_exp(task.attribute.current_xp - task.xp_gained)
-                
-                if new_level > old_level:
-                    milestone = Milestone(
-                        user_id=current_user.id,
-                        date=task.date,
-                        title=f"Level Up: {task.attribute.name}",
-                        description=f"Reached level {new_level} in {task.attribute.name}!",
-                        attribute_id=task.attribute_id,
-                        achievement_type='level_up'
-                    )
-                    db.session.add(milestone)
-            
-            if task.subskill:
-                task.subskill.current_xp += task.xp_gained
-
-    # Update stress
-    if task.stress_effect != 0:
-        stress_stat = CharacterStat.query.filter_by(
-            user_id=current_user.id, 
-            stat_name='Stress'
-        ).first()
-        if stress_stat:
-            stress_stat.value = max(0, stress_stat.value + task.stress_effect)
+    # --- NEW UNIFIED COMPLETION LOGIC ---
+    is_success = False
     
-    # Update daily stats
+    if task.is_negative_habit:
+        # For negative habits, success is being at or below the goal. Default goal is 0.
+        goal = task.numeric_value if task.numeric_value is not None else 0
+        
+        # This handles both numeric and the simulated non-numeric (Yes=1, No=0)
+        if task.logged_numeric_value is not None and task.logged_numeric_value <= goal:
+            is_success = True
+    else:
+        # For positive habits, success is any non-zero activity or non-numeric completion.
+        if task.numeric_unit is None: # Non-numeric tasks are always a success
+            is_success = True
+        elif task.logged_numeric_value is not None and task.logged_numeric_value > 0:
+            is_success = True
+
+    if is_success:
+        # --- Apply Positive Rewards for Success (Positive Habits or Avoided Negative Habits) ---
+        reward_xp = task.xp_gained or 25  # Use task's XP, or a default for negative habits
+        
+        if task.attribute:
+            task.attribute.current_xp += reward_xp
+            # (Level up milestone logic could be re-added here if desired)
+        if task.subskill:
+            task.subskill.current_xp += reward_xp
+        
+        # For negative habits, success also reduces stress
+        if task.is_negative_habit:
+            stress_stat = CharacterStat.query.filter_by(user_id=current_user.id, stat_name='Stress').first()
+            if stress_stat:
+                stress_stat.value = max(0, stress_stat.value - 5) # Stress reduction reward
+    else:
+        # --- Apply Penalties for Failure (Only for Negative Habits) ---
+        if task.is_negative_habit:
+            stress_stat = CharacterStat.query.filter_by(user_id=current_user.id, stat_name='Stress').first()
+            if stress_stat and task.stress_effect != 0:
+                stress_stat.value = max(0, stress_stat.value + abs(task.stress_effect))
+
+    # --- Update Daily Stats ---
+    # (This section remains mostly the same, but now respects 'is_success')
     today = datetime.date.today().isoformat()
     daily_stat = DailyStat.query.filter_by(user_id=current_user.id, date=today).first()
     if not daily_stat:
-        daily_stat = DailyStat(
-            user_id=current_user.id, 
-            date=today,
-            stress_level=0,
-            tasks_completed=0,
-            total_xp_gained=0
-        )
+        daily_stat = DailyStat(user_id=current_user.id, date=today, tasks_completed=0, total_xp_gained=0)
         db.session.add(daily_stat)
-    
-    # Ensure values are not None before incrementing
-    if daily_stat.tasks_completed is None:
-        daily_stat.tasks_completed = 0
-    if daily_stat.total_xp_gained is None:
-        daily_stat.total_xp_gained = 0
-    
-    # --- UPDATED LOGIC ---
-    if is_true_completion:
+
+    if daily_stat.tasks_completed is None: daily_stat.tasks_completed = 0
+    if daily_stat.total_xp_gained is None: daily_stat.total_xp_gained = 0
+
+    if is_success:
         daily_stat.tasks_completed += 1
-        if not task.is_negative_habit:
-            daily_stat.total_xp_gained += task.xp_gained
-    
+        daily_stat.total_xp_gained += (task.xp_gained or 25)
+
     db.session.commit()
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'was_success': is_success})
 
 @app.route('/api/complete_negative_habit', methods=['POST'])
 @login_required
