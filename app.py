@@ -1160,6 +1160,14 @@ def get_habit_progress():
     if not habit_description:
         return jsonify({'error': 'Habit description is required'}), 400
 
+    # --- NEW: Determine if the habit is positive or negative ---
+    habit_info = RecurringTask.query.filter_by(user_id=current_user.id, description=habit_description).first()
+    if not habit_info: # Fallback to check the main task table
+        habit_info = Task.query.filter_by(user_id=current_user.id, description=habit_description).first()
+    
+    is_negative = habit_info.is_negative_habit if habit_info else False
+    unit = habit_info.numeric_unit if habit_info else ''
+
     today = date.today()
     
     # --- Weekly Progress ---
@@ -1208,28 +1216,35 @@ def get_habit_progress():
     this_month_stats = get_month_stats(start_of_this_month)
     last_month_stats = get_month_stats(start_of_last_month)
     
-    # --- Calculate Percentage Change ---
-    def calc_change(current, previous):
+    # --- NEW: Inverted Calculation for Negative Habits ---
+    def calc_change(current, previous, is_negative_habit):
         if previous > 0:
-            return round(((current - previous) / previous) * 100, 1)
-        return 0 if current == 0 else 100 # If previous is 0, any new value is a 100% increase
+            if is_negative_habit:
+                # For negative habits, a decrease is good (positive change)
+                return round(((previous - current) / previous) * 100, 1)
+            else:
+                # For positive habits, an increase is good (positive change)
+                return round(((current - previous) / previous) * 100, 1)
+        elif current > 0:
+            return 100 if not is_negative_habit else -100
+        return 0
 
     return jsonify({
         'week': {
             'this_week': this_week_stats,
             'last_week': last_week_stats,
-            'total_change': calc_change(this_week_stats['total'], last_week_stats['total']),
-            'avg_change': calc_change(this_week_stats['avg'], last_week_stats['avg'])
+            'total_change': calc_change(this_week_stats['total'], last_week_stats['total'], is_negative),
+            'avg_change': calc_change(this_week_stats['avg'], last_week_stats['avg'], is_negative)
         },
         'month': {
             'this_month': this_month_stats,
             'last_month': last_month_stats,
-            'total_change': calc_change(this_month_stats['total'], last_month_stats['total']),
-            'avg_change': calc_change(this_month_stats['avg'], last_month_stats['avg'])
+            'total_change': calc_change(this_month_stats['total'], last_month_stats['total'], is_negative),
+            'avg_change': calc_change(this_month_stats['avg'], last_month_stats['avg'], is_negative)
         },
-        'unit': Task.query.filter_by(user_id=current_user.id, description=habit_description).first().numeric_unit
+        'unit': unit,
+        'is_negative': is_negative
     })
-
 
 @app.route('/api/quests')
 @login_required
