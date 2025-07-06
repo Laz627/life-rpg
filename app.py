@@ -538,29 +538,36 @@ def api_complete_task():
         except (ValueError, TypeError):
             return jsonify({'success': False, 'error': 'Invalid numeric value provided.'})
 
-    # Update XP if not negative habit
-    if not task.is_negative_habit and task.xp_gained > 0:
-        if task.attribute:
-            task.attribute.current_xp += task.xp_gained
+    # Determine if this is a true completion or just logging a zero
+    is_true_completion = True
+    if task.logged_numeric_value is not None and task.logged_numeric_value == 0:
+        is_true_completion = False
+
+    # --- UPDATED LOGIC ---
+    if is_true_completion:
+        # Update XP if not negative habit
+        if not task.is_negative_habit and task.xp_gained > 0:
+            if task.attribute:
+                task.attribute.current_xp += task.xp_gained
+                
+                # Check for level up milestone
+                new_level = calculate_level_from_exp(task.attribute.current_xp)
+                old_level = calculate_level_from_exp(task.attribute.current_xp - task.xp_gained)
+                
+                if new_level > old_level:
+                    milestone = Milestone(
+                        user_id=current_user.id,
+                        date=task.date,
+                        title=f"Level Up: {task.attribute.name}",
+                        description=f"Reached level {new_level} in {task.attribute.name}!",
+                        attribute_id=task.attribute_id,
+                        achievement_type='level_up'
+                    )
+                    db.session.add(milestone)
             
-            # Check for level up milestone
-            new_level = calculate_level_from_exp(task.attribute.current_xp)
-            old_level = calculate_level_from_exp(task.attribute.current_xp - task.xp_gained)
-            
-            if new_level > old_level:
-                milestone = Milestone(
-                    user_id=current_user.id,
-                    date=task.date,
-                    title=f"Level Up: {task.attribute.name}",
-                    description=f"Reached level {new_level} in {task.attribute.name}!",
-                    attribute_id=task.attribute_id,
-                    achievement_type='level_up'
-                )
-                db.session.add(milestone)
-        
-        if task.subskill:
-            task.subskill.current_xp += task.xp_gained
-    
+            if task.subskill:
+                task.subskill.current_xp += task.xp_gained
+
     # Update stress
     if task.stress_effect != 0:
         stress_stat = CharacterStat.query.filter_by(
@@ -589,9 +596,11 @@ def api_complete_task():
     if daily_stat.total_xp_gained is None:
         daily_stat.total_xp_gained = 0
     
-    daily_stat.tasks_completed += 1
-    if not task.is_negative_habit:
-        daily_stat.total_xp_gained += task.xp_gained
+    # --- UPDATED LOGIC ---
+    if is_true_completion:
+        daily_stat.tasks_completed += 1
+        if not task.is_negative_habit:
+            daily_stat.total_xp_gained += task.xp_gained
     
     db.session.commit()
     return jsonify({'success': True})
