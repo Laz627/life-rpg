@@ -497,6 +497,12 @@ def api_add_task():
     # Calculate XP based on difficulty
     xp = 0 if data.get('is_negative_habit') else TASK_DIFFICULTIES.get(data.get('difficulty', 'medium'), 25)
     
+    # --- NEW: Automatically assign a unit for non-numeric negative habits ---
+    is_negative = data.get('is_negative_habit', False)
+    numeric_unit = data.get('numeric_unit') if data.get('numeric_unit') else None
+    if is_negative and not numeric_unit:
+        numeric_unit = 'occurrence'
+
     task = Task(
         user_id=current_user.id,
         date=data.get('date', datetime.date.today().isoformat()),
@@ -506,9 +512,9 @@ def api_add_task():
         subskill_id=subskill.subskill_id if subskill else None,
         xp_gained=xp,
         stress_effect=int(data.get('stress_effect', 0)),
-        is_negative_habit=data.get('is_negative_habit', False),
+        is_negative_habit=is_negative,
         numeric_value=data.get('numeric_value') if data.get('numeric_value') else None,
-        numeric_unit=data.get('numeric_unit') if data.get('numeric_unit') else None
+        numeric_unit=numeric_unit
     )
     
     db.session.add(task)
@@ -1449,6 +1455,12 @@ def api_add_recurring_task():
     
     # Calculate XP based on difficulty
     xp = 0 if data.get('is_negative_habit') else TASK_DIFFICULTIES.get(data.get('difficulty', 'medium'), 25)
+
+    # --- NEW: Automatically assign a unit for non-numeric negative habits ---
+    is_negative = data.get('is_negative_habit', False)
+    numeric_unit = data.get('numeric_unit') if data.get('numeric_unit') else None
+    if is_negative and not numeric_unit:
+        numeric_unit = 'occurrence'
     
     recurring_task = RecurringTask(
         user_id=current_user.id,
@@ -1456,10 +1468,10 @@ def api_add_recurring_task():
         attribute_id=attribute.attribute_id if attribute else None,
         xp_value=xp,
         stress_effect=int(data.get('stress_effect', 0)),
-        is_negative_habit=data.get('is_negative_habit', False),
+        is_negative_habit=is_negative,
         start_date=datetime.date.today().isoformat(),
         numeric_value=data.get('numeric_value') if data.get('numeric_value') else None,
-        numeric_unit=data.get('numeric_unit') if data.get('numeric_unit') else None
+        numeric_unit=numeric_unit
     )
     
     db.session.add(recurring_task)
