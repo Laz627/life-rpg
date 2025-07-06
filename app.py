@@ -6,9 +6,11 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import openai
 import datetime
+from datetime import date, timedelta
 import random
 import math
 import json
+from sqlalchemy import func
 
 # --- Configuration ---
 app = Flask(__name__)
@@ -112,6 +114,10 @@ class Task(db.Model):
     is_skipped = db.Column(db.Boolean, default=False)
     is_negative_habit = db.Column(db.Boolean, default=False)
     negative_habit_done = db.Column(db.Boolean, default=None)  # None=not answered, True=did it, False=avoided
+    # --- NEW FIELDS FOR NUMERIC TRACKING ---
+    numeric_value = db.Column(db.Float, nullable=True)
+    numeric_unit = db.Column(db.String(50), nullable=True)
+    logged_numeric_value = db.Column(db.Float, nullable=True)
 
 
 class Quest(db.Model):
@@ -159,6 +165,9 @@ class RecurringTask(db.Model):
     start_date = db.Column(db.String(10), nullable=False)
     last_added_date = db.Column(db.String(10))
     is_active = db.Column(db.Boolean, default=True)
+    # --- NEW FIELDS FOR NUMERIC TRACKING ---
+    numeric_value = db.Column(db.Float, nullable=True)
+    numeric_unit = db.Column(db.String(50), nullable=True)
     
     # Relationships to access attribute and subskill objects
     attribute = db.relationship('Attribute', backref='recurring_tasks')
@@ -431,7 +440,9 @@ def api_get_tasks():
                 subskill_id=rt.subskill_id,
                 xp_gained=rt.xp_value,
                 stress_effect=rt.stress_effect,
-                is_negative_habit=rt.is_negative_habit
+                is_negative_habit=rt.is_negative_habit,
+                numeric_value=rt.numeric_value,
+                numeric_unit=rt.numeric_unit
             )
             db.session.add(task)
     
@@ -454,7 +465,10 @@ def api_get_tasks():
             'subskill': task.subskill.name if task.subskill else None,
             'xp': task.xp_gained,
             'stress_effect': task.stress_effect,
-            'is_negative_habit': task.is_negative_habit
+            'is_negative_habit': task.is_negative_habit,
+            'numeric_value': task.numeric_value,
+            'numeric_unit': task.numeric_unit,
+            'logged_numeric_value': task.logged_numeric_value
         })
     
     return jsonify(tasks_data)
@@ -492,7 +506,9 @@ def api_add_task():
         subskill_id=subskill.subskill_id if subskill else None,
         xp_gained=xp,
         stress_effect=int(data.get('stress_effect', 0)),
-        is_negative_habit=data.get('is_negative_habit', False)
+        is_negative_habit=data.get('is_negative_habit', False),
+        numeric_value=data.get('numeric_value') if data.get('numeric_value') else None,
+        numeric_unit=data.get('numeric_unit') if data.get('numeric_unit') else None
     )
     
     db.session.add(task)
@@ -505,7 +521,8 @@ def api_add_task():
 def api_complete_task():
     data = request.json
     task_id = data.get('task_id')
-    
+    logged_numeric_value = data.get('logged_numeric_value')
+
     task = Task.query.filter_by(task_id=task_id, user_id=current_user.id).first()
     if not task:
         return jsonify({'success': False, 'error': 'Task not found'})
@@ -515,7 +532,12 @@ def api_complete_task():
     
     # Mark as completed
     task.is_completed = True
-    
+    if logged_numeric_value is not None:
+        try:
+            task.logged_numeric_value = float(logged_numeric_value)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid numeric value provided.'})
+
     # Update XP if not negative habit
     if not task.is_negative_habit and task.xp_gained > 0:
         if task.attribute:
@@ -1121,6 +1143,97 @@ def api_get_attribute_history():
     
     return jsonify(result)
 
+# --- NEW PROGRESS TRACKING ENDPOINTS ---
+@app.route('/api/get_numeric_habits')
+@login_required
+def get_numeric_habits():
+    """Returns a list of unique descriptions for numeric habits."""
+    habits = db.session.query(Task.description).filter(
+        Task.user_id == current_user.id,
+        Task.numeric_unit.isnot(None)
+    ).distinct().all()
+    
+    habit_list = [h[0] for h in habits]
+    return jsonify(habit_list)
+
+@app.route('/api/habit_progress')
+@login_required
+def get_habit_progress():
+    habit_description = request.args.get('description')
+    if not habit_description:
+        return jsonify({'error': 'Habit description is required'}), 400
+
+    today = date.today()
+    
+    # --- Weekly Progress ---
+    start_of_this_week = today - timedelta(days=today.weekday())
+    start_of_last_week = start_of_this_week - timedelta(days=7)
+    
+    def get_week_stats(start_date):
+        end_date = start_date + timedelta(days=6)
+        stats = db.session.query(
+            func.sum(Task.logged_numeric_value),
+            func.avg(Task.logged_numeric_value),
+            func.count(Task.task_id)
+        ).filter(
+            Task.user_id == current_user.id,
+            Task.description == habit_description,
+            Task.is_completed == True,
+            Task.logged_numeric_value.isnot(None),
+            Task.date >= start_date.isoformat(),
+            Task.date <= end_date.isoformat()
+        ).first()
+        return {'total': stats[0] or 0, 'avg': stats[1] or 0, 'entries': stats[2] or 0}
+
+    this_week_stats = get_week_stats(start_of_this_week)
+    last_week_stats = get_week_stats(start_of_last_week)
+
+    # --- Monthly Progress ---
+    start_of_this_month = today.replace(day=1)
+    start_of_last_month = (start_of_this_month - timedelta(days=1)).replace(day=1)
+
+    def get_month_stats(start_date):
+        end_date = (start_date.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        stats = db.session.query(
+            func.sum(Task.logged_numeric_value),
+            func.avg(Task.logged_numeric_value),
+            func.count(Task.task_id)
+        ).filter(
+            Task.user_id == current_user.id,
+            Task.description == habit_description,
+            Task.is_completed == True,
+            Task.logged_numeric_value.isnot(None),
+            Task.date >= start_date.isoformat(),
+            Task.date <= end_date.isoformat()
+        ).first()
+        return {'total': stats[0] or 0, 'avg': stats[1] or 0, 'entries': stats[2] or 0}
+
+    this_month_stats = get_month_stats(start_of_this_month)
+    last_month_stats = get_month_stats(start_of_last_month)
+    
+    # --- Calculate Percentage Change ---
+    def calc_change(current, previous):
+        if previous > 0:
+            return round(((current - previous) / previous) * 100, 1)
+        return 0 if current == 0 else 100 # If previous is 0, any new value is a 100% increase
+
+    return jsonify({
+        'week': {
+            'this_week': this_week_stats,
+            'last_week': last_week_stats,
+            'total_change': calc_change(this_week_stats['total'], last_week_stats['total']),
+            'avg_change': calc_change(this_week_stats['avg'], last_week_stats['avg'])
+        },
+        'month': {
+            'this_month': this_month_stats,
+            'last_month': last_month_stats,
+            'total_change': calc_change(this_month_stats['total'], last_month_stats['total']),
+            'avg_change': calc_change(this_month_stats['avg'], last_month_stats['avg'])
+        },
+        'unit': Task.query.filter_by(user_id=current_user.id, description=habit_description).first().numeric_unit
+    })
+
+
 @app.route('/api/quests')
 @login_required
 def api_get_quests():
@@ -1302,7 +1415,9 @@ def api_get_recurring_tasks():
             'stress_effect': rt.stress_effect,
             'is_negative_habit': rt.is_negative_habit,
             'is_active': rt.is_active,
-            'last_added_date': rt.last_added_date
+            'last_added_date': rt.last_added_date,
+            'numeric_value': rt.numeric_value,
+            'numeric_unit': rt.numeric_unit
         })
     
     return jsonify(tasks_data)
@@ -1330,7 +1445,9 @@ def api_add_recurring_task():
         xp_value=xp,
         stress_effect=int(data.get('stress_effect', 0)),
         is_negative_habit=data.get('is_negative_habit', False),
-        start_date=datetime.date.today().isoformat()
+        start_date=datetime.date.today().isoformat(),
+        numeric_value=data.get('numeric_value') if data.get('numeric_value') else None,
+        numeric_unit=data.get('numeric_unit') if data.get('numeric_unit') else None
     )
     
     db.session.add(recurring_task)
