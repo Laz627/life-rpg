@@ -383,15 +383,18 @@ async function handleHabitProgressSelection(event) {
 }
 
 // --- Action Functions (called from rendered elements) ---
-async function completeTask(taskId, isNumeric = false, unit = '') {
+
+async function completeTask(taskId, isNumeric = false, unit = '', forcedValue = null) {
     const taskElement = document.querySelector(`button[onclick*="completeTask(${taskId})"]`)?.closest('.task-item');
     if (taskElement) taskElement.style.opacity = '0.5';
 
     let payload = { task_id: taskId };
 
-    if (isNumeric) {
-        const loggedValue = prompt(`How many ${unit} did you complete?`);
-        if (loggedValue === null) { // User cancelled prompt
+    if (forcedValue !== null) {
+        payload.logged_numeric_value = forcedValue;
+    } else if (isNumeric) {
+        const loggedValue = prompt(`How many ${unit} did you complete? (Enter 0 if none)`);
+        if (loggedValue === null) {
             if (taskElement) taskElement.style.opacity = '1';
             return;
         }
@@ -409,7 +412,7 @@ async function completeTask(taskId, isNumeric = false, unit = '') {
         await fetchAndRenderAttributes();
         await fetchAndRenderStats();
         await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
-        if (isNumeric) await fetchAndRenderHabitProgressor(true); // Re-fetch progress for the selected habit
+        if (isNumeric) await fetchAndRenderHabitProgressor(true);
         
         if (Math.random() < 0.2) {
            await fetchAndRenderMilestones(milestones.page);
@@ -646,12 +649,15 @@ function renderTasks() {
         taskEl.className = taskClasses;
         
         let attributeText = task.attribute ? `[${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}]` : '';
-        let xpText = task.is_negative_habit ? '' : `(${task.xp} XP)`;
+        let xpText = task.is_negative_habit ? `(Avoid: ${task.xp || 25} XP)` : `(${task.xp} XP)`;
         let numericText = '';
+
         if (task.numeric_unit) {
             if (task.completed && task.logged_numeric_value !== null) {
-                numericText = `<span class="completion-status">Logged: ${task.logged_numeric_value} ${task.numeric_unit}</span>`;
-            } else if (task.numeric_value) {
+                // Display the logged value and what the goal was
+                let goalText = task.numeric_value !== null ? `(Goal: ${task.numeric_value} ${task.numeric_unit})` : '';
+                numericText = `<span class="completion-status">Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText}</span>`;
+            } else if (task.numeric_value !== null) {
                 numericText = `(Goal: ${task.numeric_value} ${task.numeric_unit})`;
             } else {
                  numericText = `(${task.numeric_unit})`;
@@ -659,20 +665,28 @@ function renderTasks() {
         }
         
         let actionButtons = '';
-        const isNumeric = !!task.numeric_unit;
-
+        
         if (task.completed) {
-            actionButtons = `<span class="completion-status">✓ Done! ${numericText}</span>`;
+            actionButtons = `<span class="completion-status">✓ Logged!</span>`;
         } else if (task.skipped) {
             actionButtons = '<span class="completion-status">⏭ Skipped</span>';
         } else if (task.is_negative_habit) {
-            actionButtons = `
-                <div class="task-actions negative-habit-actions">
-                    <button onclick="completeNegativeHabit(${task.id}, true)" class="btn-danger btn-small">Yes, I did it</button>
-                    <button onclick="completeNegativeHabit(${task.id}, false)" class="btn-success btn-small">No, I avoided it</button>
-                </div>
-            `;
+            // --- NEW LOGIC FOR NEGATIVE HABITS ---
+            if (task.numeric_unit) {
+                // It's a NUMERIC negative habit (e.g., track cigarettes smoked)
+                actionButtons = `<button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log Habit</button>`;
+            } else {
+                // It's a NON-NUMERIC negative habit (e.g., avoid junk food)
+                actionButtons = `
+                    <div class="task-actions negative-habit-actions">
+                        <button onclick="completeTask(${task.id}, true, '', 1)" class="btn-danger btn-small">Yes, I did it</button>
+                        <button onclick="completeTask(${task.id}, true, '', 0)" class="btn-success btn-small">No, I avoided it</button>
+                    </div>
+                `;
+            }
         } else {
+            // Regular positive task
+            const isNumeric = !!task.numeric_unit;
             actionButtons = `
                 <button onclick="completeTask(${task.id}, ${isNumeric}, '${task.numeric_unit}')" class="btn-success btn-small">✓ Complete</button>
                 <button onclick="skipTask(${task.id})" class="btn-warning btn-small">⏭ Skip</button>
@@ -682,7 +696,7 @@ function renderTasks() {
         taskEl.innerHTML = `
             <div>
                 ${task.description} ${attributeText} ${xpText} ${numericText}
-                <small>Stress: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}</small>
+                <small>Stress Penalty: +${Math.abs(task.stress_effect)}</small>
             </div>
             <div class="task-actions">
                 ${actionButtons}
