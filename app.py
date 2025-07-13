@@ -10,7 +10,7 @@ from datetime import date, timedelta
 import random
 import math
 import json
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 # --- Configuration ---
 app = Flask(__name__)
@@ -448,9 +448,9 @@ def api_get_tasks():
     
     db.session.commit()
     
-    # Get tasks for the date
+    # Get tasks for the date, sorted alphabetically
     tasks = Task.query.filter_by(user_id=current_user.id, date=date).order_by(
-        Task.is_completed, Task.is_skipped, Task.task_id.desc()
+        Task.is_completed, Task.is_skipped, Task.description.asc()
     ).all()
     
     tasks_data = []
@@ -540,49 +540,40 @@ def api_complete_task():
         try:
             task.logged_numeric_value = float(logged_numeric_value)
         except (ValueError, TypeError):
-            pass # Non-numeric values will be handled by the logic below
+            pass
 
-    # --- NEW UNIFIED COMPLETION LOGIC ---
     is_success = False
     
     if task.is_negative_habit:
-        # For negative habits, success is being at or below the goal. Default goal is 0.
         goal = task.numeric_value if task.numeric_value is not None else 0
-        
-        # This handles both numeric and the simulated non-numeric (Yes=1, No=0)
         if task.logged_numeric_value is not None and task.logged_numeric_value <= goal:
             is_success = True
+        # Set the flag for stats tracking
+        task.negative_habit_done = not is_success
     else:
-        # For positive habits, success is any non-zero activity or non-numeric completion.
-        if task.numeric_unit is None: # Non-numeric tasks are always a success
+        if task.numeric_unit is None:
             is_success = True
         elif task.logged_numeric_value is not None and task.logged_numeric_value > 0:
             is_success = True
 
     if is_success:
-        # --- Apply Positive Rewards for Success (Positive Habits or Avoided Negative Habits) ---
-        reward_xp = task.xp_gained or 25  # Use task's XP, or a default for negative habits
+        reward_xp = task.xp_gained or 25
         
         if task.attribute:
             task.attribute.current_xp += reward_xp
-            # (Level up milestone logic could be re-added here if desired)
         if task.subskill:
             task.subskill.current_xp += reward_xp
         
-        # For negative habits, success also reduces stress
         if task.is_negative_habit:
             stress_stat = CharacterStat.query.filter_by(user_id=current_user.id, stat_name='Stress').first()
             if stress_stat:
-                stress_stat.value = max(0, stress_stat.value - 5) # Stress reduction reward
+                stress_stat.value = max(0, stress_stat.value - 5)
     else:
-        # --- Apply Penalties for Failure (Only for Negative Habits) ---
         if task.is_negative_habit:
             stress_stat = CharacterStat.query.filter_by(user_id=current_user.id, stat_name='Stress').first()
             if stress_stat and task.stress_effect != 0:
                 stress_stat.value = max(0, stress_stat.value + abs(task.stress_effect))
 
-    # --- Update Daily Stats ---
-    # (This section remains mostly the same, but now respects 'is_success')
     today = datetime.date.today().isoformat()
     daily_stat = DailyStat.query.filter_by(user_id=current_user.id, date=today).first()
     if not daily_stat:
@@ -614,10 +605,9 @@ def api_complete_negative_habit():
         return jsonify({'success': False, 'error': 'Task already completed'})
     
     task.is_completed = True
-    task.negative_habit_done = did_negative  # Track the actual outcome
+    task.negative_habit_done = did_negative
     
     if did_negative:
-        # Did the negative habit - apply stress
         if task.stress_effect != 0:
             stress_stat = CharacterStat.query.filter_by(
                 user_id=current_user.id, 
@@ -626,14 +616,12 @@ def api_complete_negative_habit():
             if stress_stat:
                 stress_stat.value = max(0, stress_stat.value + abs(task.stress_effect))
     else:
-        # Avoided the negative habit - give reward
         reward_xp = task.xp_gained or 25
         if task.attribute:
             task.attribute.current_xp += reward_xp
         if task.subskill:
             task.subskill.current_xp += reward_xp
         
-        # Reduce stress for avoiding negative habit
         stress_stat = CharacterStat.query.filter_by(
             user_id=current_user.id, 
             stat_name='Stress'
@@ -641,7 +629,6 @@ def api_complete_negative_habit():
         if stress_stat:
             stress_stat.value = max(0, stress_stat.value - 5)
     
-    # Update daily stats
     today = datetime.date.today().isoformat()
     daily_stat = DailyStat.query.filter_by(user_id=current_user.id, date=today).first()
     if not daily_stat:
@@ -654,7 +641,6 @@ def api_complete_negative_habit():
         )
         db.session.add(daily_stat)
     
-    # Ensure values are not None
     if daily_stat.tasks_completed is None:
         daily_stat.tasks_completed = 0
     if daily_stat.total_xp_gained is None:
@@ -695,7 +681,6 @@ def api_delete_task():
     if not task:
         return jsonify({'success': False, 'error': 'Task not found'})
     
-    # If completed and gave XP, subtract it back
     if task.is_completed and not task.is_negative_habit and task.xp_gained > 0:
         if task.attribute:
             task.attribute.current_xp = max(0, task.attribute.current_xp - task.xp_gained)
@@ -712,33 +697,29 @@ def api_delete_task():
 def api_get_stats():
     stats = {}
     
-    # Get character stats
     character_stats = CharacterStat.query.filter_by(user_id=current_user.id).all()
     for stat in character_stats:
         stats[stat.stat_name] = stat.value
     
-    # Get total completed tasks
     stats['Total Tasks Completed'] = Task.query.filter_by(
         user_id=current_user.id, 
         is_completed=True
     ).count()
     
-    # UPDATED: More specific negative habit stats
     stats['Negative Habits Done'] = Task.query.filter_by(
         user_id=current_user.id, 
         is_completed=True, 
         is_negative_habit=True,
-        negative_habit_done=True  # Only count when they actually did it
+        negative_habit_done=True
     ).count()
     
     stats['Negative Habits Avoided'] = Task.query.filter_by(
         user_id=current_user.id, 
         is_completed=True, 
         is_negative_habit=True,
-        negative_habit_done=False  # Only count when they avoided it
+        negative_habit_done=False
     ).count()
     
-    # Get skipped tasks for today
     today = datetime.date.today().isoformat()
     stats['Tasks Skipped Today'] = Task.query.filter_by(
         user_id=current_user.id, 
@@ -746,7 +727,6 @@ def api_get_stats():
         is_skipped=True
     ).count()
     
-    # Get incomplete tasks for today
     stats['Tasks Remaining Today'] = Task.query.filter_by(
         user_id=current_user.id, 
         date=today, 
@@ -754,11 +734,9 @@ def api_get_stats():
         is_skipped=False
     ).count()
     
-    # Get total XP
     total_xp = db.session.query(db.func.sum(Attribute.current_xp)).filter_by(user_id=current_user.id).scalar()
     stats['Total XP'] = total_xp or 0
     
-    # Get quest counts
     stats['Active Quests'] = Quest.query.filter_by(
         user_id=current_user.id, 
         status='Active'
@@ -777,10 +755,8 @@ def api_get_milestones():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 5, type=int)
     
-    # Get total count
     total = Milestone.query.filter_by(user_id=current_user.id).count()
     
-    # Get paginated milestones
     milestones = Milestone.query.filter_by(user_id=current_user.id).order_by(
         Milestone.date.desc(), Milestone.milestone_id.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)
@@ -848,19 +824,16 @@ def api_generate_narrative():
     if not api_key:
         return jsonify({'error': 'API key required'}), 400
     
-    # Get or create narrative progress
     progress = NarrativeProgress.query.filter_by(user_id=current_user.id).first()
     if not progress:
         progress = NarrativeProgress(user_id=current_user.id)
         db.session.add(progress)
         db.session.flush()
     
-    # Get the last narrative for context
     last_narrative = DailyNarrative.query.filter_by(user_id=current_user.id).order_by(
         DailyNarrative.date.desc()
     ).first()
     
-    # Build context for the AI
     context = f"""
 Current Story State:
 - Location: {progress.current_location}
@@ -873,10 +846,8 @@ Current Story State:
     if last_narrative:
         context += f"\nYesterday's Events: {last_narrative.narrative}"
     
-    # Get story progression info
     story_info = get_story_phase_and_focus(progress.story_day)
     
-    # Create dynamic prompt based on story progression
     prompt = f"""Write today's D&D adventure entry for an ongoing epic story. 
 
 STORY PROGRESSION:
@@ -910,7 +881,6 @@ At the end, update the story state in this format:
     
     narrative_text = generate_ai_response(prompt, system_message, api_key)
     
-    # Parse story updates from the AI response
     lines = narrative_text.split('\n')
     story_updates = {}
     clean_narrative = []
@@ -927,10 +897,8 @@ At the end, update the story state in this format:
         else:
             clean_narrative.append(line)
     
-    # Clean up the narrative (remove the update markers)
     final_narrative = '\n'.join(clean_narrative).strip()
     
-    # Update progress tracking
     if story_updates.get('location'):
         progress.current_location = story_updates['location']
     if story_updates.get('quest'):
@@ -943,7 +911,6 @@ At the end, update the story state in this format:
     progress.story_day += 1
     progress.updated_at = datetime.datetime.utcnow()
     
-    # Save narrative
     existing_narrative = DailyNarrative.query.filter_by(
         user_id=current_user.id, 
         date=date
@@ -973,13 +940,9 @@ At the end, update the story state in this format:
     })
 
 def get_story_phase_and_focus(story_day):
-    """Determine story phase and focus based on day count"""
-    
-    # Calculate which "chapter" we're in (every 50 days = new chapter)
     chapter = (story_day - 1) // 50 + 1
     day_in_chapter = ((story_day - 1) % 50) + 1
     
-    # Determine phase within current chapter
     if day_in_chapter <= 10:
         phase = "Opening"
         if chapter == 1:
@@ -999,11 +962,10 @@ def get_story_phase_and_focus(story_day):
         phase = "Climax"
         focus = "The chapter's main conflict reaches its peak! Epic battles, major revelations, heroic moments."
     
-    else:  # Days 46-50
+    else:
         phase = "Resolution"
         focus = "Conclude the chapter's main arc. Celebrate victories, mourn losses, set up the next adventure."
     
-    # Add complexity based on overall progression
     if story_day <= 50:
         complexity = "Local Hero"
         scope = "Focus on personal growth and local threats."
@@ -1027,18 +989,16 @@ def get_story_phase_and_focus(story_day):
     }
 
 def get_special_chapter_instructions(day_in_chapter, chapter_num):
-    """Provide special instructions based on story position"""
-    
     if day_in_chapter == 1 and chapter_num > 1:
         return f"CHAPTER {chapter_num} OPENING: Introduce new setting, escalated threats, and evolved character status."
     
-    elif day_in_chapter == 50:  # Chapter ending
+    elif day_in_chapter == 50:
         return "CHAPTER FINALE: Provide satisfying conclusion to this chapter's main arc. Hint at future adventures."
     
-    elif day_in_chapter in [45, 46, 47, 48, 49]:  # Climax period
+    elif day_in_chapter in [45, 46, 47, 48, 49]:
         return "CLIMAX SEQUENCE: This is peak drama! Make it epic and consequential."
     
-    elif chapter_num >= 3 and day_in_chapter == 25:  # Mid-chapter in later chapters
+    elif chapter_num >= 3 and day_in_chapter == 25:
         return "MID-CHAPTER TWIST: Introduce a major plot twist or revelation that changes everything."
     
     else:
@@ -1050,10 +1010,8 @@ def api_get_narratives():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 3, type=int)
     
-    # Get total count
     total = DailyNarrative.query.filter_by(user_id=current_user.id).count()
     
-    # Get paginated narratives
     narratives = DailyNarrative.query.filter_by(user_id=current_user.id).order_by(
         DailyNarrative.date.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)
@@ -1078,7 +1036,6 @@ def api_get_heatmap():
     year = request.args.get('year', datetime.date.today().year, type=int)
     month = request.args.get('month', datetime.date.today().month, type=int)
     
-    # Get daily stats for the month
     start_date = f"{year}-{month:02d}-01"
     if month == 12:
         end_date = f"{year + 1}-01-01"
@@ -1105,21 +1062,17 @@ def api_get_heatmap():
 def api_get_attribute_history():
     days = request.args.get('days', 30, type=int)
     
-    # Get date range
     end_date = datetime.date.today()
     start_date = end_date - datetime.timedelta(days=days)
     
-    # Get user's attributes
     user_attributes = Attribute.query.filter_by(user_id=current_user.id).all()
     
-    # Build date list
     dates = []
     current_date = start_date
     while current_date <= end_date:
         dates.append(current_date.isoformat())
         current_date += datetime.timedelta(days=1)
     
-    # Calculate XP progression for each attribute
     result = {
         'dates': dates,
         'attributes': {}
@@ -1130,7 +1083,6 @@ def api_get_attribute_history():
         running_xp = 0
         
         for date_str in dates:
-            # Get XP gained on this date for this attribute
             daily_xp = db.session.query(db.func.sum(Task.xp_gained)).filter_by(
                 user_id=current_user.id,
                 attribute_id=attribute.attribute_id,
@@ -1154,7 +1106,7 @@ def get_numeric_habits():
     habits = db.session.query(Task.description).filter(
         Task.user_id == current_user.id,
         Task.numeric_unit.isnot(None)
-    ).distinct().all()
+    ).distinct().order_by(Task.description).all()
     
     habit_list = [h[0] for h in habits]
     return jsonify(habit_list)
@@ -1166,9 +1118,8 @@ def get_habit_progress():
     if not habit_description:
         return jsonify({'error': 'Habit description is required'}), 400
 
-    # --- NEW: Determine if the habit is positive or negative ---
     habit_info = RecurringTask.query.filter_by(user_id=current_user.id, description=habit_description).first()
-    if not habit_info: # Fallback to check the main task table
+    if not habit_info:
         habit_info = Task.query.filter_by(user_id=current_user.id, description=habit_description).first()
     
     is_negative = habit_info.is_negative_habit if habit_info else False
@@ -1176,7 +1127,6 @@ def get_habit_progress():
 
     today = date.today()
     
-    # --- Weekly Progress ---
     start_of_this_week = today - timedelta(days=today.weekday())
     start_of_last_week = start_of_this_week - timedelta(days=7)
     
@@ -1199,7 +1149,6 @@ def get_habit_progress():
     this_week_stats = get_week_stats(start_of_this_week)
     last_week_stats = get_week_stats(start_of_last_week)
 
-    # --- Monthly Progress ---
     start_of_this_month = today.replace(day=1)
     start_of_last_month = (start_of_this_month - timedelta(days=1)).replace(day=1)
 
@@ -1222,14 +1171,11 @@ def get_habit_progress():
     this_month_stats = get_month_stats(start_of_this_month)
     last_month_stats = get_month_stats(start_of_last_month)
     
-    # --- NEW: Inverted Calculation for Negative Habits ---
     def calc_change(current, previous, is_negative_habit):
         if previous > 0:
             if is_negative_habit:
-                # For negative habits, a decrease is good (positive change)
                 return round(((previous - current) / previous) * 100, 1)
             else:
-                # For positive habits, an increase is good (positive change)
                 return round(((current - previous) / previous) * 100, 1)
         elif current > 0:
             return 100 if not is_negative_habit else -100
@@ -1257,7 +1203,7 @@ def get_habit_progress():
 def api_get_quests():
     quests = Quest.query.filter_by(user_id=current_user.id).order_by(
         (Quest.status == 'Active').desc(),
-        Quest.due_date.asc(),
+        Quest.due_date.asc().nullslast(),
         Quest.start_date.desc()
     ).all()
     
@@ -1309,12 +1255,10 @@ def api_complete_quest():
     if not quest or quest.status == 'Completed':
         return jsonify({'success': False, 'error': 'Quest not found or already completed'})
     
-    # Mark as completed
     today = datetime.date.today().isoformat()
     quest.status = 'Completed'
     quest.completed_date = today
     
-    # Add XP to attribute if specified
     if quest.attribute_focus:
         attribute = Attribute.query.filter_by(
             user_id=current_user.id,
@@ -1323,7 +1267,6 @@ def api_complete_quest():
         if attribute:
             attribute.current_xp += quest.xp_reward
     
-    # Add milestone
     milestone = Milestone(
         user_id=current_user.id,
         date=today,
@@ -1355,7 +1298,6 @@ def api_generate_quest():
                                   "You are a quest master creating real-life self-improvement quests.",
                                   api_key)
     
-    # Parse response
     lines = response.split('\n')
     title = "New Quest"
     description = response
@@ -1393,7 +1335,6 @@ def api_enhance_quest_description():
     if not description:
         return jsonify({'error': 'Description required'}), 400
     
-    # More varied and creative prompt
     prompt = f"""Transform this real-world goal into an epic fantasy quest description. Be creative and avoid generic openings like "Embark on" or "Journey to":
 
 Real Goal: "{description}"
@@ -1445,7 +1386,6 @@ def api_get_recurring_tasks():
 def api_add_recurring_task():
     data = request.json
     
-    # Get attribute
     attribute = None
     if data.get('attribute'):
         attribute = Attribute.query.filter_by(
@@ -1453,10 +1393,8 @@ def api_add_recurring_task():
             name=data['attribute']
         ).first()
     
-    # Calculate XP based on difficulty
     xp = 0 if data.get('is_negative_habit') else TASK_DIFFICULTIES.get(data.get('difficulty', 'medium'), 25)
 
-    # --- NEW: Automatically assign a unit for non-numeric negative habits ---
     is_negative = data.get('is_negative_habit', False)
     numeric_unit = data.get('numeric_unit') if data.get('numeric_unit') else None
     if is_negative and not numeric_unit:
@@ -1517,7 +1455,6 @@ def api_reset_day():
     date = data.get('date', datetime.date.today().isoformat())
     
     try:
-        # Get tasks to be deleted (for XP rollback)
         completed_tasks = Task.query.filter_by(
             user_id=current_user.id,
             date=date,
@@ -1525,21 +1462,19 @@ def api_reset_day():
             is_negative_habit=False
         ).all()
         
-        # Rollback XP
         for task in completed_tasks:
             if task.attribute and task.xp_gained > 0:
                 task.attribute.current_xp = max(0, task.attribute.current_xp - task.xp_gained)
             if task.subskill and task.xp_gained > 0:
                 task.subskill.current_xp = max(0, task.subskill.current_xp - task.xp_gained)
         
-        # Delete tasks
-        Task.query.filter_by(user_id=current_user.id, date=date).delete()
-        tasks_deleted = len(completed_tasks)
+        tasks_to_delete = Task.query.filter_by(user_id=current_user.id, date=date).all()
+        tasks_deleted = len(tasks_to_delete)
+        for task in tasks_to_delete:
+            db.session.delete(task)
         
-        # Reset daily stats
         DailyStat.query.filter_by(user_id=current_user.id, date=date).delete()
         
-        # Delete narrative
         DailyNarrative.query.filter_by(user_id=current_user.id, date=date).delete()
         
         db.session.commit()
@@ -1558,13 +1493,11 @@ def api_reset_day():
 def add_negative_habit_column():
     """Add the new negative_habit_done column to existing tasks table"""
     try:
-        # Use the correct SQLAlchemy 2.x syntax
         with db.engine.connect() as connection:
-            connection.execute(db.text('ALTER TABLE task ADD COLUMN negative_habit_done BOOLEAN DEFAULT NULL'))
+            connection.execute(text('ALTER TABLE task ADD COLUMN negative_habit_done BOOLEAN DEFAULT NULL'))
             connection.commit()
         return "Successfully added negative_habit_done column to task table!"
     except Exception as e:
-        # Check if column already exists (common error)
         if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
             return "Column already exists - no action needed!"
         return f"Error adding column: {str(e)}"
