@@ -7,7 +7,6 @@ let characterStats = {};
 let quests = [];
 let milestones = { data: [], page: 1, totalPages: 1, perPage: 5 };
 let narratives = { data: [], page: 1, totalPages: 1, perPage: 3 };
-let attributeHistoryChart = null;
 let heatmapCurrentDate = new Date(); // For heatmap navigation
 
 // --- DOM Ready Initialization ---
@@ -52,7 +51,6 @@ function saveApiKey() {
         return;
     }
     
-    // Test the API key
     apiCall('/api/test_api_key', 'POST', {api_key: apiKey})
     .then(data => {
         if (data && data.success) {
@@ -74,10 +72,8 @@ function skipApiKey() {
 async function initializePageData() {
     console.log("Initializing all page data...");
     
-    // Fetch in a somewhat logical order, things that populate dropdowns first
-    await fetchAndRenderAttributes(); // Attributes needed for dropdowns
+    await fetchAndRenderAttributes();
     
-    // Then fetch other core data
     await fetchAndRenderTasks(currentSelectedDate);
     await fetchAndRenderStats();
     await fetchAndRenderRecurringTasks();
@@ -85,45 +81,31 @@ async function initializePageData() {
     await fetchAndRenderMilestones(milestones.page);
     await fetchAndRenderDailyNarrative(currentSelectedDate);
     await fetchAndRenderNarrativeHistory(narratives.page);
-    await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1); // Month is 1-indexed for API
-    await fetchAndRenderAttributeHistory();
-    await fetchAndRenderHabitProgressor(); // NEW: For the progress card
+    await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
+    await fetchAndRenderHabitProgressor();
     
-    updateHeatmapControlsLabel(); // Set initial heatmap label
+    updateHeatmapControlsLabel();
 }
 
 // --- Event Listener Setup ---
 function setupEventListeners() {
-    // Date Picker for Tasks and Narratives
     document.getElementById('selected-date').addEventListener('change', handleDateChange);
-
-    // Task Management
     document.getElementById('add-task-btn').addEventListener('click', () => toggleForm('add-task-form-container'));
     document.getElementById('add-task-form').addEventListener('submit', handleAddTask);
     document.getElementById('task-stress').addEventListener('input', (e) => { document.getElementById('task-stress-value-display').textContent = e.target.value; });
     setupRadioGroup('task-type-radio', 'task-difficulty-group', 'task-stress', 'task-stress-value-display', 'task-numeric-inputs');
     document.getElementById('reset-day-btn').addEventListener('click', handleResetDay);
-
-    // Recurring Task Management
     document.getElementById('add-recurring-task-btn').addEventListener('click', () => toggleForm('add-recurring-task-form-container'));
     document.getElementById('add-recurring-task-form').addEventListener('submit', handleAddRecurringTask);
     document.getElementById('recurring-task-stress').addEventListener('input', (e) => { document.getElementById('recurring-task-stress-value-display').textContent = e.target.value; });
     setupRadioGroup('recurring-task-type-radio', 'recurring-task-difficulty-group', 'recurring-task-stress', 'recurring-task-stress-value-display', 'recurring-task-numeric-inputs');
-
-    // Quest Management
     document.getElementById('add-quest-btn').addEventListener('click', () => toggleForm('add-quest-form-container'));
     document.getElementById('add-quest-form').addEventListener('submit', handleAddQuest);
     document.getElementById('generate-quest-btn').addEventListener('click', handleGenerateQuest);
     document.getElementById('enhance-quest-desc-btn').addEventListener('click', enhanceQuestDescription);
-    
-    // Narrative Management
-    document.getElementById('refresh-narrative-btn').addEventListener('click', () => fetchAndRenderDailyNarrative(currentSelectedDate, true)); // true to force regeneration
-
-    // Heatmap Navigation
+    document.getElementById('refresh-narrative-btn').addEventListener('click', () => fetchAndRenderDailyNarrative(currentSelectedDate, true));
     document.getElementById('prev-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(-1));
     document.getElementById('next-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(1));
-
-    // NEW: Habit Progress
     document.getElementById('habit-progress-select').addEventListener('change', handleHabitProgressSelection);
 }
 
@@ -164,14 +146,10 @@ function setupRadioGroup(groupId, difficultyGroupId, stressSliderId, stressValue
             }
         });
     });
-    // Initialize by clicking the first selected or first overall if none are pre-selected
     const selectedOption = group.querySelector('.radio-option.selected') || options[0];
     if (selectedOption) selectedOption.click();
 }
 
-// --- Enhanced Features ---
-
-// Enhanced quest description
 async function enhanceQuestDescription() {
     const apiKey = localStorage.getItem('openai_api_key');
     if (!apiKey) {
@@ -208,7 +186,6 @@ async function enhanceQuestDescription() {
     enhanceBtn.textContent = '✨ Enhance Description (AI)';
 }
 
-// Complete negative habit with Yes/No option
 async function completeNegativeHabit(taskId, didNegative) {
     const result = await apiCall('/api/complete_negative_habit', 'POST', { 
         task_id: taskId, 
@@ -221,21 +198,18 @@ async function completeNegativeHabit(taskId, didNegative) {
         await fetchAndRenderStats();
         await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
         
-        // Show feedback message
         const message = didNegative ? 
             "Habit tracked. Don't worry, tomorrow is a new opportunity!" : 
             "Great job avoiding that habit! You earned bonus XP!";
         
         setTimeout(() => alert(message), 100);
         
-        // Potentially fetch milestones if completion could trigger one
         if (Math.random() < 0.2) {
            await fetchAndRenderMilestones(milestones.page);
         }
     }
 }
 
-// Skip task function
 async function skipTask(taskId) {
     if (!confirm('Mark this task as skipped? It will not count towards your progress.')) return;
     
@@ -246,7 +220,6 @@ async function skipTask(taskId) {
     }
 }
 
-// --- Event Handlers ---
 async function handleDateChange(e) {
     currentSelectedDate = e.target.value;
     const isToday = currentSelectedDate === new Date().toISOString().split('T')[0];
@@ -283,7 +256,7 @@ async function handleAddTask(event) {
         if (!payload.is_negative_habit && payload.attribute) await fetchAndRenderAttributes();
         await fetchAndRenderStats();
         await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
-        await fetchAndRenderHabitProgressor(); // Refresh habit list
+        await fetchAndRenderHabitProgressor();
     }
 }
 
@@ -292,7 +265,7 @@ async function handleResetDay() {
     const result = await apiCall('/api/reset_day', 'POST', { date: currentSelectedDate });
     if (result && result.success) {
         alert(`Day ${result.date} has been reset. Tasks deleted: ${result.tasks_deleted}.`);
-        await initializePageData(); // Full refresh needed as many things could change
+        await initializePageData();
     }
 }
 
@@ -316,7 +289,7 @@ async function handleAddRecurringTask(event) {
         toggleForm('add-recurring-task-form-container');
         await fetchAndRenderRecurringTasks();
         await fetchAndRenderTasks(currentSelectedDate);
-        await fetchAndRenderHabitProgressor(); // Refresh habit list
+        await fetchAndRenderHabitProgressor();
     }
 }
 
@@ -382,8 +355,6 @@ async function handleHabitProgressSelection(event) {
     }
 }
 
-// --- Action Functions (called from rendered elements) ---
-
 async function completeTask(taskId, isNumeric = false, unit = '', forcedValue = null) {
     const taskElement = document.querySelector(`button[onclick*="completeTask(${taskId})"]`)?.closest('.task-item');
     if (taskElement) taskElement.style.opacity = '0.5';
@@ -433,7 +404,7 @@ async function deleteTask(taskId) {
         }
         await fetchAndRenderStats();
         await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
-        await fetchAndRenderHabitProgressor(); // List might have changed
+        await fetchAndRenderHabitProgressor();
     }
 }
 
@@ -442,7 +413,7 @@ async function deleteRecurringTask(rtId) {
     const result = await apiCall(`/api/recurring_tasks/${rtId}`, 'DELETE');
     if (result && result.success) {
         await fetchAndRenderRecurringTasks();
-        await fetchAndRenderHabitProgressor(); // List might have changed
+        await fetchAndRenderHabitProgressor();
     }
 }
 
@@ -474,7 +445,6 @@ async function deleteMilestone(milestoneId) {
     }
 }
 
-// --- API Call Wrapper ---
 async function apiCall(endpoint, method = 'GET', body = null) {
     const options = { method, headers: {} };
     if (body) {
@@ -497,7 +467,6 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     }
 }
 
-// --- Fetch and Render Specific Data Sections ---
 async function fetchAndRenderAttributes() {
     attributes = await apiCall('/api/attributes') || [];
     renderAttributes();
@@ -571,13 +540,6 @@ async function fetchAndRenderHeatmap(year, month) {
     }
 }
 
-async function fetchAndRenderAttributeHistory() {
-    const data = await apiCall('/api/attribute_history?days=30');
-    if (data) {
-        renderAttributeHistory(data);
-    }
-}
-
 async function fetchAndRenderHabitProgressor(refreshCurrent = false) {
     const habitList = await apiCall('/api/get_numeric_habits');
     const selectEl = document.getElementById('habit-progress-select');
@@ -592,7 +554,6 @@ async function fetchAndRenderHabitProgressor(refreshCurrent = false) {
     }
 }
 
-// --- DOM Rendering Functions ---
 function renderAttributes() {
     const container = document.getElementById('attributes-container');
     container.innerHTML = '';
@@ -654,7 +615,6 @@ function renderTasks() {
 
         if (task.numeric_unit) {
             if (task.completed && task.logged_numeric_value !== null) {
-                // Display the logged value and what the goal was
                 let goalText = task.numeric_value !== null ? `(Goal: ${task.numeric_value} ${task.numeric_unit})` : '';
                 numericText = `<span class="completion-status">Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText}</span>`;
             } else if (task.numeric_value !== null) {
@@ -671,12 +631,9 @@ function renderTasks() {
         } else if (task.skipped) {
             actionButtons = '<span class="completion-status">⏭ Skipped</span>';
         } else if (task.is_negative_habit) {
-            // --- NEW LOGIC FOR NEGATIVE HABITS ---
             if (task.numeric_unit) {
-                // It's a NUMERIC negative habit (e.g., track cigarettes smoked)
                 actionButtons = `<button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log Habit</button>`;
             } else {
-                // It's a NON-NUMERIC negative habit (e.g., avoid junk food)
                 actionButtons = `
                     <div class="task-actions negative-habit-actions">
                         <button onclick="completeTask(${task.id}, true, '', 1)" class="btn-danger btn-small">Yes, I did it</button>
@@ -685,7 +642,6 @@ function renderTasks() {
                 `;
             }
         } else {
-            // Regular positive task
             const isNumeric = !!task.numeric_unit;
             actionButtons = `
                 <button onclick="completeTask(${task.id}, ${isNumeric}, '${task.numeric_unit}')" class="btn-success btn-small">✓ Complete</button>
@@ -735,7 +691,7 @@ function renderCharacterStats() {
             let statValue = characterStats[statName];
             let style = (statName === 'Tasks Remaining Today' && statValue > 0) ? 
                 ' style="color: var(--negative-color); font-weight: bold;"' : '';
-            statEl.innerHTML = `<strong${style}>${statName.replace(/([A-Z])/g, ' $1').trim()}:</strong> <span${style}>${statValue}</span>`;
+            statEl.innerHTML = `<strong>${statName.replace(/([A-Z])/g, ' $1').trim()}:</strong> <span${style}>${statValue}</span>`;
             container.appendChild(statEl);
         }
     });
@@ -886,6 +842,10 @@ function renderHeatmap(year, month, data) {
     if (!data) { container.innerHTML = '<p>Loading heatmap data...</p>'; return; }
 
     const activityMap = new Map(data.map(item => [item.date, { count: item.count, xp: item.xp }]));
+    
+    const xpValues = data.map(d => d.xp).filter(xp => xp > 0);
+    const max_xp = xpValues.length > 0 ? Math.max(...xpValues) : 0;
+    
     const table = document.createElement('table');
     table.className = 'calendar-table';
     const headerRow = table.insertRow();
@@ -919,10 +879,15 @@ function renderHeatmap(year, month, data) {
                     dataDiv.innerHTML = `Tasks: ${activity.count}<br>XP: ${activity.xp}`;
                     dayCell.appendChild(dataDiv);
                     
-                    if (activity.xp > 0) intensityLevel = 1;
-                    if (activity.xp >= 50) intensityLevel = 2;
-                    if (activity.xp >= 100) intensityLevel = 3;
-                    if (activity.xp >= 200) intensityLevel = 4;
+                    const currentXp = activity.xp;
+                    if (max_xp > 0) {
+                        if (currentXp > 0 && currentXp <= max_xp * 0.25) intensityLevel = 1;
+                        else if (currentXp > max_xp * 0.25 && currentXp <= max_xp * 0.5) intensityLevel = 2;
+                        else if (currentXp > max_xp * 0.5 && currentXp <= max_xp * 0.75) intensityLevel = 3;
+                        else if (currentXp > max_xp * 0.75) intensityLevel = 4;
+                    } else if (currentXp > 0) {
+                        intensityLevel = 2;
+                    }
                     
                     dayCell.addEventListener('mouseenter', (e) => showTooltip(e, `${dateStr}: ${activity.count} tasks, ${activity.xp} XP`));
                     dayCell.addEventListener('mouseleave', hideTooltip);
@@ -938,63 +903,16 @@ function renderHeatmap(year, month, data) {
     container.appendChild(table);
 }
 
-function renderAttributeHistory(data) {
-    const ctx = document.getElementById('attribute-history-chart')?.getContext('2d');
-    if (!ctx || !data || !data.dates || !data.attributes) {
-        console.warn("Attribute history chart canvas or data not found.");
-        return;
-    }
-
-    const datasets = [];
-    const defaultColors = ['#e63946', '#fca311', '#2ec4b6', '#003049', '#a7c957', '#ffbe0b', '#540b0e', '#0ead69'];
-    let colorIndex = 0;
-
-    for (const [attrName, levels] of Object.entries(data.attributes)) {
-        if (levels.some(l => l > 0)) {
-            datasets.push({
-                label: attrName,
-                data: levels,
-                borderColor: defaultColors[colorIndex % defaultColors.length],
-                backgroundColor: defaultColors[colorIndex % defaultColors.length] + '33',
-                tension: 0.2, fill: false, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5
-            });
-            colorIndex++;
-        }
-    }
-
-    if (attributeHistoryChart) {
-        attributeHistoryChart.data.labels = data.dates;
-        attributeHistoryChart.data.datasets = datasets;
-        attributeHistoryChart.update();
-    } else if (typeof Chart !== 'undefined') {
-        attributeHistoryChart = new Chart(ctx, {
-            type: 'line', data: { labels: data.dates, datasets: datasets },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: { 
-                    y: { beginAtZero: true, title: { display: true, text: 'Level' }, ticks: { stepSize: 1 } },
-                    x: { title: {display: true, text: 'Date'}, ticks: { autoSkip: true, maxTicksLimit: 10 } } 
-                },
-                plugins: { 
-                    legend: { position: 'bottom' }, 
-                    title: { display: true, text: 'Attribute Progress (Last 30 Days)', font: {size: 16, family: "'MedievalSharp', cursive"} } 
-                },
-                interaction: { intersect: false, mode: 'index' },
-            }
-        });
-    }
-}
-
 function renderHabitProgress(data) {
     const weekContainer = document.getElementById('habit-progress-week');
     const monthContainer = document.getElementById('habit-progress-month');
     const { unit, is_negative } = data;
 
-    // Add a helper label for negative habits
-    const progressHeader = document.querySelector('#habit-progress-display .section-subheader');
+    const progressHeader = document.getElementById('habit-progress-header');
     if (progressHeader) {
         let existingLabel = progressHeader.querySelector('.habit-goal-label');
         if (existingLabel) existingLabel.remove();
+        progressHeader.textContent = 'Week-over-Week';
         
         if (is_negative) {
             const label = document.createElement('span');
@@ -1037,7 +955,6 @@ function renderHabitProgress(data) {
     `;
 }
 
-// --- Utility Functions ---
 function populateAttributeDropdowns() {
     const attributeSelects = ['task-attribute', 'recurring-task-attribute', 'quest-attribute'];
     attributeSelects.forEach(selectId => {
@@ -1065,7 +982,7 @@ function populateAttributeDropdowns() {
 
 function populateHabitProgressDropdown(habitList, currentSelection) {
     const selectEl = document.getElementById('habit-progress-select');
-    selectEl.innerHTML = ''; // Clear
+    selectEl.innerHTML = '';
 
     if (!habitList || habitList.length === 0) {
         selectEl.innerHTML = '<option value="">-- No numeric habits tracked yet --</option>';
@@ -1088,7 +1005,6 @@ function populateHabitProgressDropdown(habitList, currentSelection) {
         selectEl.appendChild(option);
     });
 }
-
 
 function renderPagination(containerId, infoContainerId, pageDataObject, fetchCallback) {
     const container = document.getElementById(containerId);
