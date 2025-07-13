@@ -461,11 +461,6 @@ input:focus, select:focus, textarea:focus {
     text-align: right;
     margin-top: 2px;
 }
-.attribute-chart-container {
-    margin-top: 20px;
-    height: 250px; /* Adjust as needed */
-}
-
 
 /* Quests Card */
 .quest-card {
