@@ -107,6 +107,11 @@ function setupEventListeners() {
     document.getElementById('prev-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(-1));
     document.getElementById('next-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(1));
     document.getElementById('habit-progress-select').addEventListener('change', handleHabitProgressSelection);
+
+    // NEW Listeners for Edit Quest Modal
+    document.getElementById('close-edit-quest-modal-btn').addEventListener('click', closeEditQuestModal);
+    document.getElementById('save-quest-changes-btn').addEventListener('click', handleSaveQuestChanges);
+    document.getElementById('add-quest-step-form').addEventListener('submit', handleAddQuestStep);
 }
 
 function toggleForm(formContainerId) {
@@ -445,6 +450,111 @@ async function deleteMilestone(milestoneId) {
     }
 }
 
+// --- NEW Quest Step Handlers ---
+
+function openEditQuestModal(questId) {
+    const quest = quests.find(q => q.id === questId);
+    if (!quest) return;
+
+    document.getElementById('edit-quest-id').value = quest.id;
+    document.getElementById('edit-quest-title').value = quest.title;
+    document.getElementById('edit-quest-description').value = quest.description;
+    
+    renderQuestChecklistInModal(quest);
+
+    document.getElementById('editQuestModal').style.display = 'block';
+}
+
+function closeEditQuestModal() {
+    document.getElementById('editQuestModal').style.display = 'none';
+}
+
+function renderQuestChecklistInModal(quest) {
+    const container = document.getElementById('edit-quest-checklist-container');
+    container.innerHTML = '';
+    const checklist = document.createElement('ul');
+    checklist.className = 'quest-checklist';
+
+    if (quest.steps && quest.steps.length > 0) {
+        quest.steps.forEach(step => {
+            const stepEl = document.createElement('li');
+            stepEl.className = `quest-step ${step.is_completed ? 'completed' : ''}`;
+            stepEl.innerHTML = `
+                <input type="checkbox" onchange="toggleQuestStep(${step.id})" ${step.is_completed ? 'checked' : ''}>
+                <span class="quest-step-label">${step.description}</span>
+                <span class="quest-step-delete-btn" onclick="deleteQuestStep(${step.id}, ${quest.id})">✖</span>
+            `;
+            checklist.appendChild(stepEl);
+        });
+    } else {
+        checklist.innerHTML = '<p style="font-size: 0.9em; color: var(--text-light-color);">No steps added yet.</p>';
+    }
+    container.appendChild(checklist);
+}
+
+async function handleSaveQuestChanges() {
+    const questId = document.getElementById('edit-quest-id').value;
+    const payload = {
+        title: document.getElementById('edit-quest-title').value,
+        description: document.getElementById('edit-quest-description').value
+    };
+
+    const result = await apiCall(`/api/quests/${questId}`, 'PUT', payload);
+    if (result && result.success) {
+        closeEditQuestModal();
+        await fetchAndRenderQuests();
+    }
+}
+
+async function handleAddQuestStep(event) {
+    event.preventDefault();
+    const questId = document.getElementById('edit-quest-id').value;
+    const descriptionInput = document.getElementById('new-quest-step-desc');
+    const description = descriptionInput.value.trim();
+
+    if (!description) return;
+
+    const result = await apiCall(`/api/quests/${questId}/steps`, 'POST', { description });
+    if (result && result.success) {
+        descriptionInput.value = '';
+        // Manually update local quest object and re-render modal checklist
+        const quest = quests.find(q => q.id === parseInt(questId));
+        if (quest) {
+            quest.steps.push(result.step);
+            renderQuestChecklistInModal(quest);
+            await fetchAndRenderQuests(); // Also update the main view
+        }
+    }
+}
+
+async function toggleQuestStep(stepId) {
+    const result = await apiCall(`/api/quest_steps/${stepId}/toggle`, 'PUT');
+    if (result && result.success) {
+        // Update local state and re-render
+        const quest = quests.find(q => q.steps.some(s => s.id === stepId));
+        if(quest) {
+            const step = quest.steps.find(s => s.id === stepId);
+            step.is_completed = result.is_completed;
+            renderQuestChecklistInModal(quest); // Re-render modal if open
+            await fetchAndRenderQuests(); // Re-render main quest list
+        }
+    }
+}
+
+async function deleteQuestStep(stepId, questId) {
+    if (!confirm('Are you sure you want to delete this step?')) return;
+    const result = await apiCall(`/api/quest_steps/${stepId}`, 'DELETE');
+    if (result && result.success) {
+        const quest = quests.find(q => q.id === questId);
+        if (quest) {
+            quest.steps = quest.steps.filter(s => s.id !== stepId);
+            renderQuestChecklistInModal(quest);
+            await fetchAndRenderQuests();
+        }
+    }
+}
+
+
 async function apiCall(endpoint, method = 'GET', body = null) {
     const options = { method, headers: {} };
     if (body) {
@@ -759,7 +869,9 @@ function renderQuests() {
 
 function createQuestCard(quest) {
     const card = document.createElement('div');
-    card.className = `quest-card quest-difficulty-${quest.difficulty.toLowerCase()} ${quest.status !== 'Active' ? 'quest-completed-card' : ''}`;
+    // MODIFIED: Removed quest-difficulty class from card itself
+    card.className = `quest-card ${quest.status !== 'Active' ? 'quest-completed-card' : ''}`;
+    card.id = `quest-card-${quest.id}`;
     
     let dueStatus = '';
     if (quest.status === 'Active' && quest.due_date) {
@@ -776,6 +888,10 @@ function createQuestCard(quest) {
         dueStatus = 'No due date';
     }
 
+    const completedSteps = quest.steps.filter(s => s.is_completed).length;
+    const totalSteps = quest.steps.length;
+
+    // NEW: Quest card structure with checklist
     card.innerHTML = `
         <div class="quest-title-line">
             <span class="quest-title">${quest.title}</span>
@@ -787,8 +903,34 @@ function createQuestCard(quest) {
             <span class="quest-xp-tag">XP: ${quest.xp_reward}</span>
             <span>${dueStatus}</span>
         </div>
-        ${quest.status === 'Active' ? `<button onclick="completeQuest(${quest.id})" class="btn-success btn-small">⚔ Complete Quest</button>` : ''}
+
+        <div id="checklist-container-${quest.id}" class="quest-checklist-container">
+             <ul class="quest-checklist">
+                ${quest.steps.map(step => `
+                    <li class="quest-step ${step.is_completed ? 'completed' : ''}">
+                        <input type="checkbox" id="step-${step.id}" ${step.is_completed ? 'checked' : ''} disabled>
+                        <label for="step-${step.id}" class="quest-step-label">${step.description}</label>
+                    </li>
+                `).join('')}
+            </ul>
+        </div>
+        
+        ${quest.status === 'Active' ? `
+        <div class="quest-actions-bar">
+            <button onclick="event.stopPropagation(); completeQuest(${quest.id})" class="btn-success btn-small">⚔ Complete Quest</button>
+            <button onclick="event.stopPropagation(); openEditQuestModal(${quest.id})" class="btn-secondary btn-small">⚙️ Edit / View Steps</button>
+            <span class="quest-progress-text">${totalSteps > 0 ? `${completedSteps}/${totalSteps} Steps` : 'No steps'}</span>
+        </div>` : ''}
     `;
+
+    // NEW: Click to expand/collapse checklist
+    if (quest.status === 'Active') {
+        card.addEventListener('click', () => {
+            const checklistContainer = document.getElementById(`checklist-container-${quest.id}`);
+            checklistContainer.classList.toggle('expanded');
+        });
+    }
+
     return card;
 }
 
