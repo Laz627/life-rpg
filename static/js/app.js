@@ -92,7 +92,7 @@ function setupEventListeners() {
     document.getElementById('prev-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(-1));
     document.getElementById('next-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(1));
     document.getElementById('habit-progress-select').addEventListener('change', handleHabitProgressSelection);
-    document.getElementById('edit-quest-form').addEventListener('submit', handleUpdateQuest); // NEW
+    document.getElementById('edit-quest-form').addEventListener('submit', handleUpdateQuest);
 }
 
 function toggleForm(formContainerId) {
@@ -471,7 +471,7 @@ async function fetchAndRenderHabitProgressor(refreshCurrent = false) {
     }
 }
 
-// --- DOM Rendering Functions ---
+// --- DOM Rendering Functions (restored original versions) ---
 function renderAttributes() {
     const container = document.getElementById('attributes-container'); container.innerHTML = '';
     if (!attributes || attributes.length === 0) return container.innerHTML = '<p>No attributes data.</p>';
@@ -486,6 +486,7 @@ function renderAttributes() {
         container.appendChild(attrEl);
     });
 }
+
 function renderTasks() {
     const container = document.getElementById('task-list'); container.innerHTML = '';
     if (!tasks || tasks.length === 0) return container.innerHTML = '<li>No tasks for this day.</li>';
@@ -493,7 +494,6 @@ function renderTasks() {
         const taskEl = document.createElement('li');
         let taskClasses = `task-item ${task.is_negative_habit ? 'negative-habit' : ''} ${task.completed ? 'task-completed' : ''} ${task.skipped ? 'task-skipped' : ''}`;
         taskEl.className = taskClasses.trim();
-        
         let attributeText = task.attribute ? `[${task.attribute}${task.subskill ? ` → ${task.subskill}` : ''}]` : '';
         let xpText = task.is_negative_habit ? `(Avoid: ${task.xp || 25} XP)` : `(${task.xp} XP)`;
         let numericText = '';
@@ -501,24 +501,31 @@ function renderTasks() {
             if (task.completed && task.logged_numeric_value !== null) {
                 let goalText = task.numeric_value !== null ? `(Goal: ${task.numeric_value} ${task.numeric_unit})` : '';
                 numericText = `<span class="completion-status">Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText}</span>`;
-            } else numericText = `(Goal: ${task.numeric_value || 'Any'} ${task.numeric_unit})`;
+            } else if (task.numeric_value !== null) {
+                numericText = `(Goal: ${task.numeric_value} ${task.numeric_unit})`;
+            } else {
+                 numericText = `(${task.numeric_unit})`;
+            }
         }
-        
         let actionButtons = '';
-        if (task.completed) actionButtons = `<span class="completion-status">✓ Logged!</span>`;
-        else if (task.skipped) actionButtons = '<span class="completion-status">⏭ Skipped</span>';
-        else if (task.is_negative_habit) {
-            actionButtons = task.numeric_unit && task.numeric_unit !== 'occurrence'
-                ? `<button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log</button>`
-                : `<div class="task-actions negative-habit-actions"><button onclick="completeTask(${task.id}, true, '', 1)" class="btn-danger btn-small">Yes</button><button onclick="completeTask(${task.id}, true, '', 0)" class="btn-success btn-small">No</button></div>`;
+        if (task.completed) {
+            actionButtons = `<span class="completion-status">✓ Logged!</span>`;
+        } else if (task.skipped) {
+            actionButtons = '<span class="completion-status">⏭ Skipped</span>';
+        } else if (task.is_negative_habit) {
+            if (task.numeric_unit && task.numeric_unit !== 'occurrence') {
+                actionButtons = `<button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log</button>`;
+            } else {
+                actionButtons = `<div class="task-actions negative-habit-actions"><button onclick="completeTask(${task.id}, true, '', 1)" class="btn-danger btn-small">Yes</button><button onclick="completeTask(${task.id}, true, '', 0)" class="btn-success btn-small">No</button></div>`;
+            }
         } else {
             actionButtons = `<button onclick="completeTask(${task.id}, ${!!task.numeric_unit}, '${task.numeric_unit}')" class="btn-success btn-small">✓ Complete</button><button onclick="skipTask(${task.id})" class="btn-warning btn-small">⏭ Skip</button>`;
         }
-        
         taskEl.innerHTML = `<div>${task.description} ${attributeText} ${xpText} ${numericText}<small>Stress Penalty: +${Math.abs(task.stress_effect)}</small></div><div class="task-actions">${actionButtons}<button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑</button></div>`;
         container.appendChild(taskEl);
     });
 }
+
 function renderCharacterStats() {
     const container = document.getElementById('character-stats'); container.innerHTML = '';
     const levelDisplay = document.getElementById('character-level');
@@ -539,16 +546,19 @@ function renderCharacterStats() {
         stressFill.textContent = `${characterStats['Stress']}%`;
     }
 }
+
 function renderRecurringTasks() {
     const container = document.getElementById('recurring-tasks-list'); container.innerHTML = '';
     if (!recurringTasks || recurringTasks.length === 0) return container.innerHTML = '<li>No recurring habits set.</li>';
     recurringTasks.forEach(rt => {
         const el = document.createElement('li');
         el.className = `task-item ${rt.is_negative_habit ? 'negative-habit' : ''} ${!rt.is_active ? 'task-completed' : ''}`;
-        el.innerHTML = `<div>${rt.description} ${rt.attribute_name ? `[${rt.attribute_name}]` : ''} ${rt.numeric_unit ? `(Goal: ${rt.numeric_value} ${rt.numeric_unit})` : ''}<small>(XP: ${rt.xp_value}, Stress: ${rt.stress_effect})</small></div><div class="task-actions"><button onclick="toggleRecurringActive(${rt.recurring_task_id})" class="${rt.is_active ? 'btn-warning' : 'btn-success'} btn-small">${rt.is_active ? '⏸' : '▶'}</button><button onclick="deleteRecurringTask(${rt.recurring_task_id})" class="btn-danger btn-small">🗑</button></div>`;
+        let numericText = rt.numeric_unit ? `(Goal: ${rt.numeric_value !== null ? rt.numeric_value : 'Any'} ${rt.numeric_unit})` : '';
+        el.innerHTML = `<div>${rt.description} ${rt.attribute_name ? `[${rt.attribute_name}]` : ''} ${numericText}<small>(XP: ${rt.xp_value}, Stress: ${rt.stress_effect})</small></div><div class="task-actions"><button onclick="toggleRecurringActive(${rt.recurring_task_id})" class="${rt.is_active ? 'btn-warning' : 'btn-success'} btn-small">${rt.is_active ? '⏸' : '▶'}</button><button onclick="deleteRecurringTask(${rt.recurring_task_id})" class="btn-danger btn-small">🗑</button></div>`;
         container.appendChild(el);
     });
 }
+
 function renderQuests() {
     const container = document.getElementById('quests-container'); container.innerHTML = '';
     const activeQuests = quests.filter(q => q.status === 'Active');
@@ -557,6 +567,7 @@ function renderQuests() {
     if (activeQuests.length > 0) { const h = document.createElement('h4'); h.className = 'section-subheader'; h.textContent = 'Active Quests'; container.appendChild(h); activeQuests.forEach(q => container.appendChild(createQuestCard(q))); }
     if (completedQuests.length > 0) { const h = document.createElement('h4'); h.className = 'section-subheader'; h.textContent = 'Recently Completed'; container.appendChild(h); completedQuests.forEach(q => container.appendChild(createQuestCard(q))); }
 }
+
 function createQuestCard(quest) {
     const card = document.createElement('div'); card.id = `quest-accordion-${quest.id}`;
     card.className = `quest-accordion ${quest.status !== 'Active' ? 'quest-completed-card' : ''}`;
@@ -603,6 +614,7 @@ function createQuestCard(quest) {
     `;
     return card;
 }
+
 function renderMilestones() {
     const container = document.getElementById('milestones-container'); container.innerHTML = '';
     if (!milestones.data || milestones.data.length === 0) return container.innerHTML = '<p>No achievements yet.</p>';
@@ -612,7 +624,9 @@ function renderMilestones() {
         container.appendChild(el);
     });
 }
+
 function renderDailyNarrative(content) { document.getElementById('daily-narrative').querySelector('.narrative-content').innerHTML = content ? content.replace(/\n/g, '<br>') : 'No narrative available.'; }
+
 function renderNarrativeHistory() {
     const container = document.getElementById('narrative-history-container'); container.innerHTML = '';
     if (!narratives.data || narratives.data.length === 0) return container.innerHTML = '<p>No past adventures.</p>';
@@ -622,6 +636,7 @@ function renderNarrativeHistory() {
         container.appendChild(el);
     });
 }
+
 function renderHeatmap(year, month, data) {
     const container = document.getElementById('calendar-heatmap-display'); container.innerHTML = '';
     if (!data) return container.innerHTML = '<p>Loading heatmap...</p>';
@@ -651,20 +666,38 @@ function renderHeatmap(year, month, data) {
     }
     container.appendChild(table);
 }
+
 function renderAttributeHistory(data) {
     const ctx = document.getElementById('attribute-history-chart')?.getContext('2d');
-    if (!ctx || !data) return;
-    const datasets = Object.entries(data.attributes).map(([name, levels], i) => ({
-        label: name, data: levels, tension: 0.2, fill: false, borderWidth: 2,
-        borderColor: ['#e63946', '#fca311', '#2ec4b6', '#003049', '#a7c957', '#540b0e'][i % 6]
-    }));
+    if (!ctx || !data || !data.dates || !data.attributes) return console.warn("Attribute history chart canvas or data not found.");
+
+    const datasets = [];
+    const defaultColors = ['#e63946', '#fca311', '#2ec4b6', '#003049', '#a7c957', '#ffbe0b', '#540b0e', '#0ead69'];
+    let colorIndex = 0;
+    for (const [attrName, levels] of Object.entries(data.attributes)) {
+        if (levels.some(l => l > 0)) {
+            datasets.push({ label: attrName, data: levels, borderColor: defaultColors[colorIndex % defaultColors.length], backgroundColor: defaultColors[colorIndex % defaultColors.length] + '33', tension: 0.2, fill: false, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5 });
+            colorIndex++;
+        }
+    }
+
     if (attributeHistoryChart) {
-        Object.assign(attributeHistoryChart.data, { labels: data.dates, datasets });
+        attributeHistoryChart.data.labels = data.dates;
+        attributeHistoryChart.data.datasets = datasets;
         attributeHistoryChart.update();
-    } else {
-        attributeHistoryChart = new Chart(ctx, { type: 'line', data: { labels: data.dates, datasets }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { position: 'bottom' } } } });
+    } else if (typeof Chart !== 'undefined') {
+        attributeHistoryChart = new Chart(ctx, {
+            type: 'line', data: { labels: data.dates, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Level' }, ticks: { stepSize: 1 } }, x: { title: {display: true, text: 'Date'}, ticks: { autoSkip: true, maxTicksLimit: 10 } } },
+                plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Attribute Progress (Last 30 Days)', font: {size: 16, family: "'MedievalSharp', cursive"} } },
+                interaction: { intersect: false, mode: 'index' },
+            }
+        });
     }
 }
+
 function renderHabitProgress(data) {
     const weekContainer = document.getElementById('habit-progress-week');
     const monthContainer = document.getElementById('habit-progress-month');
