@@ -132,6 +132,15 @@ class Quest(db.Model):
     due_date = db.Column(db.String(10))
     completed_date = db.Column(db.String(10))
     status = db.Column(db.String(20), default='Active')
+    # NEW: Relationship to Quest Steps
+    steps = db.relationship('QuestStep', backref='quest', lazy='dynamic', cascade='all, delete-orphan')
+
+# NEW: QuestStep model
+class QuestStep(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    quest_id = db.Column(db.Integer, db.ForeignKey('quest.quest_id'), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    is_completed = db.Column(db.Boolean, default=False)
 
 class Milestone(db.Model):
     milestone_id = db.Column(db.Integer, primary_key=True)
@@ -1198,6 +1207,7 @@ def get_habit_progress():
         'is_negative': is_negative
     })
 
+# --- QUESTS & QUEST STEPS API ---
 @app.route('/api/quests')
 @login_required
 def api_get_quests():
@@ -1209,6 +1219,15 @@ def api_get_quests():
     
     quests_data = []
     for quest in quests:
+        steps_data = []
+        # UPDATED: Eagerly load steps for each quest
+        for step in quest.steps.order_by(QuestStep.id):
+            steps_data.append({
+                'id': step.id,
+                'description': step.description,
+                'is_completed': step.is_completed
+            })
+
         quests_data.append({
             'id': quest.quest_id,
             'title': quest.title,
@@ -1219,7 +1238,8 @@ def api_get_quests():
             'start_date': quest.start_date,
             'due_date': quest.due_date,
             'completed_date': quest.completed_date,
-            'status': quest.status
+            'status': quest.status,
+            'steps': steps_data  # NEW: Include steps in response
         })
     
     return jsonify(quests_data)
@@ -1245,6 +1265,20 @@ def api_add_quest():
     
     return jsonify({'success': True, 'quest_id': quest.quest_id})
 
+# NEW: Endpoint to edit a quest's details
+@app.route('/api/quests/<int:quest_id>', methods=['PUT'])
+@login_required
+def update_quest(quest_id):
+    quest = Quest.query.filter_by(quest_id=quest_id, user_id=current_user.id).first_or_404()
+    data = request.json
+    
+    quest.title = data.get('title', quest.title)
+    quest.description = data.get('description', quest.description)
+    
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Quest updated.'})
+
+
 @app.route('/api/complete_quest', methods=['POST'])
 @login_required
 def api_complete_quest():
@@ -1255,6 +1289,11 @@ def api_complete_quest():
     if not quest or quest.status == 'Completed':
         return jsonify({'success': False, 'error': 'Quest not found or already completed'})
     
+    # NEW: Check if all steps are completed
+    incomplete_steps = quest.steps.filter_by(is_completed=False).count()
+    if incomplete_steps > 0:
+        return jsonify({'success': False, 'error': f'Cannot complete quest. {incomplete_steps} steps remaining.'}), 400
+
     today = datetime.date.today().isoformat()
     quest.status = 'Completed'
     quest.completed_date = today
@@ -1279,6 +1318,55 @@ def api_complete_quest():
     db.session.commit()
     
     return jsonify({'success': True})
+
+# NEW: Endpoint to add a quest step
+@app.route('/api/quests/<int:quest_id>/steps', methods=['POST'])
+@login_required
+def add_quest_step(quest_id):
+    quest = Quest.query.filter_by(quest_id=quest_id, user_id=current_user.id).first_or_404()
+    data = request.json
+    description = data.get('description')
+
+    if not description:
+        return jsonify({'success': False, 'error': 'Step description cannot be empty'}), 400
+
+    step = QuestStep(quest_id=quest.quest_id, description=description)
+    db.session.add(step)
+    db.session.commit()
+
+    return jsonify({
+        'success': True, 
+        'step': {
+            'id': step.id, 
+            'description': step.description,
+            'is_completed': step.is_completed
+        }
+    }), 201
+
+# NEW: Endpoint to toggle a quest step's completion
+@app.route('/api/quest_steps/<int:step_id>/toggle', methods=['PUT'])
+@login_required
+def toggle_quest_step(step_id):
+    step = QuestStep.query.get_or_404(step_id)
+    # Ensure the step belongs to a quest owned by the current user
+    if step.quest.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Forbidden'}), 403
+
+    step.is_completed = not step.is_completed
+    db.session.commit()
+    return jsonify({'success': True, 'is_completed': step.is_completed})
+
+# NEW: Endpoint to delete a quest step
+@app.route('/api/quest_steps/<int:step_id>', methods=['DELETE'])
+@login_required
+def delete_quest_step(step_id):
+    step = QuestStep.query.get_or_404(step_id)
+    if step.quest.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Forbidden'}), 403
+    
+    db.session.delete(step)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Step deleted.'})
 
 @app.route('/api/generate_quest', methods=['POST'])
 @login_required
