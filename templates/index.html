@@ -1,6 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en"><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Life RPG - Gamify Your Life</title>
@@ -81,7 +79,7 @@
                     <h4>Add New Task</h4>
                     <div class="form-group">
                         <label for="task-description">Task Description:</label>
-                        <input type="text" id="task-description" required>
+                        <input type="text" id="task-description" required="">
                     </div>
                     <div class="form-group">
                         <label for="task-attribute">Attribute:</label>
@@ -96,6 +94,7 @@
                             <div class="radio-option negative" data-value="negative">Negative Habit</div>
                         </div>
                     </div>
+                    <!-- NEW: Numeric input fields -->
                     <div class="form-group-row" id="task-numeric-inputs">
                         <div class="form-group">
                             <label for="task-numeric-value">Target Value (Optional)</label>
@@ -110,7 +109,7 @@
                         <label for="task-difficulty">Difficulty:</label>
                         <select id="task-difficulty">
                             <option value="easy">Easy (10 XP)</option>
-                            <option value="medium" selected>Medium (25 XP)</option>
+                            <option value="medium" selected="">Medium (25 XP)</option>
                             <option value="hard">Hard (50 XP)</option>
                             <option value="extra_hard">Extra Hard (100 XP)</option>
                         </select>
@@ -133,13 +132,10 @@
                     <div class="scrollable-content">
                         <div id="attributes-container"></div>
                     </div>
-                    <div class="attribute-chart-container">
-                        <canvas id="attribute-history-chart"></canvas>
-                    </div>
                 </div>
             </div>
 
-            <!-- Habit Progress Card -->
+            <!-- NEW: Habit Progress Card -->
             <div class="card">
                 <div class="card-header">
                     <h2>Habit Progress</h2>
@@ -153,7 +149,7 @@
                         </select>
                     </div>
                     <div id="habit-progress-display" style="display: none;">
-                        <h4 class="section-subheader">Week-over-Week</h4>
+                        <h4 class="section-subheader" id="habit-progress-header">Week-over-Week</h4>
                         <div id="habit-progress-week" class="progress-comparison"></div>
                         <h4 class="section-subheader">Month-over-Month</h4>
                         <div id="habit-progress-month" class="progress-comparison"></div>
@@ -183,7 +179,7 @@
                     <h4>Add Recurring Habit</h4>
                     <div class="form-group">
                         <label for="recurring-task-description">Habit Description:</label>
-                        <input type="text" id="recurring-task-description" required>
+                        <input type="text" id="recurring-task-description" required="">
                     </div>
                     <div class="form-group">
                         <label for="recurring-task-attribute">Attribute:</label>
@@ -198,6 +194,7 @@
                             <div class="radio-option negative" data-value="negative">Negative Habit</div>
                         </div>
                     </div>
+                    <!-- NEW: Numeric input fields -->
                     <div class="form-group-row" id="recurring-task-numeric-inputs">
                         <div class="form-group">
                             <label for="recurring-task-numeric-value">Target Value (Optional)</label>
@@ -212,7 +209,7 @@
                         <label for="recurring-task-difficulty">Difficulty:</label>
                         <select id="recurring-task-difficulty">
                             <option value="easy">Easy (10 XP)</option>
-                            <option value="medium" selected>Medium (25 XP)</option>
+                            <option value="medium" selected="">Medium (25 XP)</option>
                             <option value="hard">Hard (50 XP)</option>
                             <option value="extra_hard">Extra Hard (100 XP)</option>
                         </select>
@@ -242,26 +239,26 @@
                 </div>
             </div>
 
-            <!-- Add Quest Form -->
+            <!-- Add Quest Form (Updated with enhancement button) -->
             <div id="add-quest-form-container" class="form-container" style="display: none;">
                 <form id="add-quest-form" class="add-entity-form">
                     <h4>Create New Quest</h4>
                     <div class="form-group">
                         <label for="quest-title">Quest Title:</label>
-                        <input type="text" id="quest-title" required>
+                        <input type="text" id="quest-title" required="">
                     </div>
                     <div class="form-group">
                         <label for="quest-description">Quest Description:</label>
                         <div class="quest-desc-container">
                             <textarea id="quest-description" placeholder="Enter your goal (e.g., 'Exercise for 30 minutes daily')"></textarea>
-                            <button type="button" id="enhance-quest-desc-btn" class="btn-warning enhance-desc-btn">✨ Enhance (AI)</button>
+                            <button type="button" id="enhance-quest-desc-btn" class="btn-warning enhance-desc-btn">✨ Enhance Description (AI)</button>
                         </div>
                     </div>
                     <div class="form-group">
                         <label for="quest-difficulty">Difficulty:</label>
                         <select id="quest-difficulty">
                             <option value="Easy">Easy (50 XP)</option>
-                            <option value="Medium" selected>Medium (100 XP)</option>
+                            <option value="Medium" selected="">Medium (100 XP)</option>
                             <option value="Hard">Hard (175 XP)</option>
                             <option value="Epic">Epic (250 XP)</option>
                         </select>
@@ -278,45 +275,6 @@
                     </div>
                     <button type="submit" class="btn-success">Create Quest</button>
                 </form>
-            </div>
-
-            <!-- NEW: Edit Quest Modal -->
-            <div id="editQuestModal" class="modal">
-                <div class="modal-content">
-                    <form id="edit-quest-form" class="add-entity-form">
-                        <input type="hidden" id="edit-quest-id">
-                        <h4>Edit Quest</h4>
-                        <div class="form-group">
-                            <label for="edit-quest-title">Quest Title:</label>
-                            <input type="text" id="edit-quest-title" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-quest-description">Quest Description:</label>
-                            <textarea id="edit-quest-description"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-quest-difficulty">Difficulty:</label>
-                            <select id="edit-quest-difficulty">
-                                <option value="Easy">Easy (50 XP)</option>
-                                <option value="Medium">Medium (100 XP)</option>
-                                <option value="Hard">Hard (175 XP)</option>
-                                <option value="Epic">Epic (250 XP)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-quest-attribute">Attribute Focus:</label>
-                            <select id="edit-quest-attribute">
-                                <option value="">Any Attribute</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-quest-due-date">Due Date (Optional):</label>
-                            <input type="date" id="edit-quest-due-date">
-                        </div>
-                        <button type="submit" class="btn-success">Save Changes</button>
-                        <button type="button" class="btn-secondary" onclick="document.getElementById('editQuestModal').style.display='none'">Cancel</button>
-                    </form>
-                </div>
             </div>
 
             <!-- Daily Narrative Card -->
@@ -359,9 +317,9 @@
                 </div>
                 <div class="card-content">
                     <div class="heatmap-controls">
-                        <button id="prev-month-heatmap" class="btn-secondary btn-small">« Prev</button>
+                        <button id="prev-month-heatmap" class="btn-secondary btn-small">« Prev Month</button>
                         <span id="current-heatmap-month-year">Loading...</span>
-                        <button id="next-month-heatmap" class="btn-secondary btn-small">Next »</button>
+                        <button id="next-month-heatmap" class="btn-secondary btn-small">Next Month »</button>
                     </div>
                     <div class="calendar-heatmap-display-area">
                         <div id="calendar-heatmap-display">Loading heatmap...</div>
@@ -387,5 +345,6 @@
     </div>
 
     <script src="/static/js/app.js"></script>
-</body>
-</html>
+
+
+</body></html>
