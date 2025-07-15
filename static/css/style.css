@@ -398,11 +398,16 @@ input:focus, select:focus, textarea:focus {
 /* Quest description enhancement */
 .quest-desc-container {
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end; /* Aligns button to the right */
 }
 
 .enhance-desc-btn {
     margin-top: 5px;
     font-size: 0.85em;
+    width: auto; /* FIX: Button will not be full width */
+    flex-shrink: 0;
 }
 
 /* Attribute & Subskill Progress */
@@ -470,12 +475,23 @@ input:focus, select:focus, textarea:focus {
     border-radius: var(--border-radius);
     position: relative;
     background-color: #fff;
+    cursor: pointer;
+    transition: box-shadow 0.2s ease;
+}
+.quest-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.quest-title-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 .quest-title {
     font-family: var(--font-headings);
     font-size: 1.25em;
     color: var(--secondary-color);
     margin-bottom: 5px;
+    flex-grow: 1;
 }
 .quest-difficulty-badge {
     display: inline-block;
@@ -486,9 +502,11 @@ input:focus, select:focus, textarea:focus {
     font-weight: 600;
     margin-left: 8px;
     vertical-align: middle;
+    flex-shrink: 0;
 }
+/* REMOVED background colors from main quest cards, now only on badges */
 .quest-difficulty-Easy { background-color: var(--positive-color); }
-.quest-difficulty-Medium { background-color: var(--neutral-color); color: var(--text-color); }
+.quest-difficulty-Medium { background-color: var(--neutral-color); color: var(--text-color) !important; }
 .quest-difficulty-Hard { background-color: #ef6c00; } /* Orange */
 .quest-difficulty-Epic { background-color: var(--negative-color); }
 
@@ -520,8 +538,67 @@ input:focus, select:focus, textarea:focus {
     opacity: 0.7;
     background-color: #f1f8e9; /* Lightest green */
     border-left: 4px solid var(--positive-color);
+    cursor: default;
 }
 
+/* NEW: Quest Checklist Styles */
+.quest-checklist-container {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.5s ease-out;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+.quest-checklist-container.expanded {
+    max-height: 500px; /* Adjust as needed */
+    transition: max-height 0.5s ease-in;
+}
+.quest-checklist {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+.quest-step {
+    display: flex;
+    align-items: center;
+    padding: 8px 4px;
+    font-size: 0.9em;
+}
+.quest-step.completed {
+    text-decoration: line-through;
+    color: var(--text-light-color);
+    opacity: 0.8;
+}
+.quest-step input[type="checkbox"] {
+    width: auto;
+    margin-right: 10px;
+    cursor: pointer;
+}
+.quest-step-label {
+    flex-grow: 1;
+}
+.quest-step-delete-btn {
+    opacity: 0.3;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    font-size: 1.1em;
+}
+.quest-step:hover .quest-step-delete-btn {
+    opacity: 1;
+    color: var(--negative-color);
+}
+.quest-actions-bar {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    align-items: center;
+}
+.quest-progress-text {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--secondary-color);
+}
 
 /* Milestones & Narratives */
 .milestone, .narrative-item {
@@ -669,7 +746,7 @@ input:focus, select:focus, textarea:focus {
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
-/* API Key Modal Styles */
+/* API Key & General Modal Styles */
 .modal {
     display: none;
     position: fixed;
@@ -678,27 +755,36 @@ input:focus, select:focus, textarea:focus {
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0,0,0,0.8);
+    background-color: rgba(0,0,0,0.6);
+    overflow-y: auto;
+    padding: 20px 0;
 }
 
 .modal-content {
     background-color: var(--card-background-color);
-    margin: 10% auto;
+    margin: 5% auto;
     padding: 30px;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     width: 90%;
     max-width: 500px;
-    text-align: center;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
 
-.modal-content h2 {
+/* NEW: Larger modal for quest editing */
+.modal-content.modal-lg {
+    max-width: 800px;
+}
+
+.modal-content h2, .modal-content h3 {
     color: var(--primary-color);
     margin-bottom: 20px;
     font-family: var(--font-headings);
 }
 
-.modal-content input {
+.modal-content input[type="text"],
+.modal-content input[type="password"],
+.modal-content textarea {
     width: 100%;
     padding: 10px;
     margin: 10px 0;
@@ -709,19 +795,17 @@ input:focus, select:focus, textarea:focus {
     font-size: 16px;
 }
 
-.modal-content button {
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    margin: 5px;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-size: 16px;
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
 }
-
-.modal-content button:hover {
-    opacity: 0.9;
+.modal-footer button {
+    padding: 10px 20px;
+    margin: 0;
 }
 
 .help-text {
@@ -734,6 +818,21 @@ input:focus, select:focus, textarea:focus {
     font-size: 12px;
     color: var(--text-light-color);
     margin-top: 20px;
+}
+
+/* NEW: Add step form in modal */
+.add-step-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+.add-step-form input {
+    flex-grow: 1;
+    margin: 0 !important;
+}
+.add-step-form button {
+    flex-shrink: 0;
+    padding: 8px 15px !important;
 }
 
 /* Stats highlighting */
@@ -815,6 +914,7 @@ input:focus, select:focus, textarea:focus {
     .heatmap-controls { flex-direction: column; gap: 5px; }
     .form-group-row { flex-direction: column; gap: 0; }
     .progress-comparison { grid-template-columns: 1fr; }
+    .modal-content.modal-lg { margin: 2% auto; }
 }
 
 /* Style for the "Lower is Better" label */
