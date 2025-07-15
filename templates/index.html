@@ -1,4 +1,6 @@
-<html lang="en"><head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Life RPG - Gamify Your Life</title>
@@ -15,9 +17,42 @@
             <p>To unlock AI features (quest generation, narratives), please enter your OpenAI API key:</p>
             <p class="help-text">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Dashboard</a></p>
             <input type="password" id="apiKeyInput" placeholder="sk-...">
-            <button onclick="saveApiKey()">Save API Key</button>
-            <button onclick="skipApiKey()">Skip (No AI Features)</button>
-            <p class="info-text">Your API key is stored only in your browser. You pay OpenAI directly for usage.</p>
+            <div class="modal-footer">
+                <button onclick="skipApiKey()" class="btn-secondary">Skip (No AI Features)</button>
+                <button onclick="saveApiKey()" class="btn-primary">Save API Key</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Edit Quest Modal -->
+    <div id="editQuestModal" class="modal">
+        <div class="modal-content modal-lg">
+            <h3>Edit Quest</h3>
+            <form id="edit-quest-form">
+                <input type="hidden" id="edit-quest-id">
+                <div class="form-group">
+                    <label for="edit-quest-title">Quest Title:</label>
+                    <input type="text" id="edit-quest-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-quest-description">Quest Description:</label>
+                    <textarea id="edit-quest-description" rows="3"></textarea>
+                </div>
+            </form>
+
+            <h4 class="section-subheader">Quest Checklist</h4>
+            <div id="edit-quest-checklist-container">
+                <!-- Checklist items will be rendered here by JS -->
+            </div>
+            <form id="add-quest-step-form" class="add-step-form">
+                <input type="text" id="new-quest-step-desc" placeholder="Add a new step..." required>
+                <button type="submit" class="btn-success btn-small">+ Add</button>
+            </form>
+            
+            <div class="modal-footer">
+                <button id="close-edit-quest-modal-btn" type="button" class="btn-secondary">Close</button>
+                <button id="save-quest-changes-btn" type="button" class="btn-primary">Save Changes</button>
+            </div>
         </div>
     </div>
 
@@ -79,7 +114,7 @@
                     <h4>Add New Task</h4>
                     <div class="form-group">
                         <label for="task-description">Task Description:</label>
-                        <input type="text" id="task-description" required="">
+                        <input type="text" id="task-description" required>
                     </div>
                     <div class="form-group">
                         <label for="task-attribute">Attribute:</label>
@@ -109,7 +144,7 @@
                         <label for="task-difficulty">Difficulty:</label>
                         <select id="task-difficulty">
                             <option value="easy">Easy (10 XP)</option>
-                            <option value="medium" selected="">Medium (25 XP)</option>
+                            <option value="medium" selected>Medium (25 XP)</option>
                             <option value="hard">Hard (50 XP)</option>
                             <option value="extra_hard">Extra Hard (100 XP)</option>
                         </select>
@@ -179,7 +214,7 @@
                     <h4>Add Recurring Habit</h4>
                     <div class="form-group">
                         <label for="recurring-task-description">Habit Description:</label>
-                        <input type="text" id="recurring-task-description" required="">
+                        <input type="text" id="recurring-task-description" required>
                     </div>
                     <div class="form-group">
                         <label for="recurring-task-attribute">Attribute:</label>
@@ -209,7 +244,7 @@
                         <label for="recurring-task-difficulty">Difficulty:</label>
                         <select id="recurring-task-difficulty">
                             <option value="easy">Easy (10 XP)</option>
-                            <option value="medium" selected="">Medium (25 XP)</option>
+                            <option value="medium" selected>Medium (25 XP)</option>
                             <option value="hard">Hard (50 XP)</option>
                             <option value="extra_hard">Extra Hard (100 XP)</option>
                         </select>
@@ -245,7 +280,7 @@
                     <h4>Create New Quest</h4>
                     <div class="form-group">
                         <label for="quest-title">Quest Title:</label>
-                        <input type="text" id="quest-title" required="">
+                        <input type="text" id="quest-title" required>
                     </div>
                     <div class="form-group">
                         <label for="quest-description">Quest Description:</label>
@@ -258,7 +293,7 @@
                         <label for="quest-difficulty">Difficulty:</label>
                         <select id="quest-difficulty">
                             <option value="Easy">Easy (50 XP)</option>
-                            <option value="Medium" selected="">Medium (100 XP)</option>
+                            <option value="Medium" selected>Medium (100 XP)</option>
                             <option value="Hard">Hard (175 XP)</option>
                             <option value="Epic">Epic (250 XP)</option>
                         </select>
@@ -345,6 +380,5 @@
     </div>
 
     <script src="/static/js/app.js"></script>
-
-
-</body></html>
+</body>
+</html>
