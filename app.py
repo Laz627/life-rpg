@@ -221,15 +221,20 @@ def register():
         data = request.get_json() if request.is_json else request.form
         username, email, password = data.get('username'), data.get('email'), data.get('password')
         if not all([username, email, password]):
-            return jsonify({'success': False, 'error': 'All fields are required'}), 400 if request.is_json else flash('All fields are required')
+            if request.is_json: return jsonify({'success': False, 'error': 'All fields are required'}), 400
+            flash('All fields are required')
+            return render_template('register.html')
         if User.query.filter((User.username == username) | (User.email == email)).first():
-            return jsonify({'success': False, 'error': 'Username or email already exists'}), 400 if request.is_json else flash('Username or email already exists')
+            if request.is_json: return jsonify({'success': False, 'error': 'Username or email already exists'}), 400
+            flash('Username or email already exists')
+            return render_template('register.html')
         user = User(username=username, email=email, password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.commit()
         initialize_user_data(user)
         login_user(user)
-        return jsonify({'success': True, 'redirect': '/'}) if request.is_json else redirect(url_for('index'))
+        if request.is_json: return jsonify({'success': True, 'redirect': '/'})
+        return redirect(url_for('index'))
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -240,9 +245,9 @@ def login():
         user = User.query.filter((User.username == username) | (User.email == username)).first()
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            return jsonify({'success': True, 'redirect': '/'}) if request.is_json else redirect(url_for('index'))
-        if request.is_json:
-            return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
+            if request.is_json: return jsonify({'success': True, 'redirect': '/'})
+            return redirect(url_for('index'))
+        if request.is_json: return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
         flash('Invalid username/email or password')
     return render_template('login.html')
 
@@ -281,13 +286,17 @@ def api_get_attributes():
         next_level_xp = calculate_exp_for_level(level + 1)
         xp_progress = attr.current_xp - current_level_xp
         xp_needed = next_level_xp - current_level_xp
+        progress_percent = (xp_progress / xp_needed * 100) if xp_needed > 0 else 100
         subskills_data = []
         for sub in attr.subskills:
             sub_level = calculate_level_from_exp(sub.current_xp)
             sub_current_xp = calculate_exp_for_level(sub_level)
             sub_next_xp = calculate_exp_for_level(sub_level + 1)
-            subskills_data.append({'id': sub.subskill_id, 'name': sub.name, 'level': sub_level, 'total_xp': sub.current_xp, 'xp_progress': sub.current_xp - sub_current_xp, 'xp_needed': sub_next_xp - sub_current_xp, 'progress_percent': ((sub.current_xp - sub_current_xp) / (sub_next_xp - sub_current_xp) * 100) if (sub_next_xp - sub_current_xp) > 0 else 100})
-        attributes_data.append({'id': attr.attribute_id, 'name': attr.name, 'level': level, 'total_xp': attr.current_xp, 'xp_progress': xp_progress, 'xp_needed': xp_needed, 'progress_percent': (xp_progress / xp_needed * 100) if xp_needed > 0 else 100, 'subskills': subskills_data})
+            sub_xp_prog = sub.current_xp - sub_current_xp
+            sub_xp_need = sub_next_xp - sub_current_xp
+            sub_percent = (sub_xp_prog / sub_xp_need * 100) if sub_xp_need > 0 else 100
+            subskills_data.append({'id': sub.subskill_id, 'name': sub.name, 'level': sub_level, 'total_xp': sub.current_xp, 'xp_progress': sub_xp_prog, 'xp_needed': sub_xp_need, 'progress_percent': sub_percent})
+        attributes_data.append({'id': attr.attribute_id, 'name': attr.name, 'level': level, 'total_xp': attr.current_xp, 'xp_progress': xp_progress, 'xp_needed': xp_needed, 'progress_percent': progress_percent, 'subskills': subskills_data})
     return jsonify(attributes_data)
 
 @app.route('/api/tasks')
@@ -308,30 +317,49 @@ def api_get_tasks():
 def api_add_task():
     data = request.json
     is_negative = data.get('is_negative_habit', False)
-    numeric_unit = data.get('numeric_unit') or ('occurrence' if is_negative else None)
+    numeric_unit = data.get('numeric_unit') if data.get('numeric_unit') else None
+    if is_negative and not numeric_unit:
+        numeric_unit = 'occurrence'
     task = Task(user_id=current_user.id, date=data.get('date', datetime.date.today().isoformat()), description=data['description'], task_type=data.get('type', 'general'), xp_gained=0 if is_negative else TASK_DIFFICULTIES.get(data.get('difficulty', 'medium'), 25), stress_effect=int(data.get('stress_effect', 0)), is_negative_habit=is_negative, numeric_value=data.get('numeric_value'), numeric_unit=numeric_unit)
     if data.get('attribute'):
         attribute = Attribute.query.filter_by(user_id=current_user.id, name=data['attribute']).first()
-        if attribute: task.attribute_id = attribute.attribute_id
-        if data.get('subskill'):
-            subskill = Subskill.query.filter_by(attribute_id=attribute.attribute_id, name=data['subskill']).first()
-            if subskill: task.subskill_id = subskill.subskill_id
+        if attribute:
+            task.attribute_id = attribute.attribute_id
+            if data.get('subskill'):
+                subskill = Subskill.query.filter_by(attribute_id=attribute.attribute_id, name=data['subskill']).first()
+                if subskill: task.subskill_id = subskill.subskill_id
     db.session.add(task)
     db.session.commit()
     return jsonify({'success': True, 'task_id': task.task_id})
 
+# --- RESTORED: Robust Completion Logic ---
 @app.route('/api/complete_task', methods=['POST'])
 @login_required
 def api_complete_task():
     data = request.json
-    task = Task.query.get_or_404(data.get('task_id'))
-    if task.user_id != current_user.id or task.is_completed: return jsonify({'success': False, 'error': 'Task not found or already completed'}), 404
+    task_id = data.get('task_id')
+    logged_numeric_value = data.get('logged_numeric_value')
+
+    task = Task.query.filter_by(task_id=task_id, user_id=current_user.id).first()
+    if not task: return jsonify({'success': False, 'error': 'Task not found'})
+    if task.is_completed: return jsonify({'success': False, 'error': 'Task already completed'})
+
     task.is_completed = True
-    if 'logged_numeric_value' in data:
-        try: task.logged_numeric_value = float(data['logged_numeric_value'])
+    if logged_numeric_value is not None:
+        try: task.logged_numeric_value = float(logged_numeric_value)
         except (ValueError, TypeError): pass
-    is_success = (not task.is_negative_habit and (task.numeric_unit is None or (task.logged_numeric_value is not None and task.logged_numeric_value > 0))) or \
-                 (task.is_negative_habit and task.logged_numeric_value is not None and task.logged_numeric_value <= (task.numeric_value or 0))
+
+    is_success = False
+    if task.is_negative_habit:
+        goal = task.numeric_value if task.numeric_value is not None else 0
+        if task.logged_numeric_value is not None and task.logged_numeric_value <= goal:
+            is_success = True
+    else:
+        if task.numeric_unit is None:
+            is_success = True
+        elif task.logged_numeric_value is not None and task.logged_numeric_value > 0:
+            is_success = True
+
     if is_success:
         reward_xp = task.xp_gained or 25
         if task.attribute: task.attribute.current_xp += reward_xp
@@ -341,15 +369,22 @@ def api_complete_task():
             if stress_stat: stress_stat.value = max(0, stress_stat.value - 5)
     elif task.is_negative_habit:
         stress_stat = CharacterStat.query.filter_by(user_id=current_user.id, stat_name='Stress').first()
-        if stress_stat and task.stress_effect != 0: stress_stat.value = max(0, stress_stat.value + abs(task.stress_effect))
+        if stress_stat and task.stress_effect != 0:
+            stress_stat.value = max(0, stress_stat.value + abs(task.stress_effect))
+    
     today_iso = datetime.date.today().isoformat()
     daily_stat = DailyStat.query.filter_by(user_id=current_user.id, date=today_iso).first()
     if not daily_stat:
         daily_stat = DailyStat(user_id=current_user.id, date=today_iso, tasks_completed=0, total_xp_gained=0)
         db.session.add(daily_stat)
+
+    if daily_stat.tasks_completed is None: daily_stat.tasks_completed = 0
+    if daily_stat.total_xp_gained is None: daily_stat.total_xp_gained = 0
+
     if is_success:
-        daily_stat.tasks_completed = (daily_stat.tasks_completed or 0) + 1
-        daily_stat.total_xp_gained = (daily_stat.total_xp_gained or 0) + (task.xp_gained or 25)
+        daily_stat.tasks_completed += 1
+        daily_stat.total_xp_gained += (task.xp_gained or 25)
+
     db.session.commit()
     return jsonify({'success': True, 'was_success': is_success})
 
@@ -417,8 +452,6 @@ def api_get_narrative():
 @app.route('/api/generate_narrative', methods=['POST'])
 @login_required
 def api_generate_narrative():
-    # ... This function remains the same as your last version ...
-    # (It's long, so keeping it collapsed for brevity, but it's unchanged)
     data=request.json;api_key=data.get('api_key');date=data.get('date',datetime.date.today().isoformat());
     if not api_key:return jsonify({'error':'API key required'}),400
     progress=NarrativeProgress.query.filter_by(user_id=current_user.id).first();
@@ -529,7 +562,9 @@ def get_habit_progress():
     this_month_stats = get_stats(this_month_start, (this_month_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1))
     last_month_stats = get_stats(last_month_start, last_month_end)
     def calc_change(curr, prev, is_n):
-        if prev > 0: change = ((curr - prev) / prev) * 100; return round(-change if is_n else change, 1)
+        if prev > 0:
+            change = ((curr - prev) / prev) * 100
+            return round(-change if is_n else change, 1)
         return 100 if curr > 0 and not is_n else (-100 if curr > 0 and is_n else 0)
     return jsonify({
         'week': {'this_week': this_week_stats, 'last_week': last_week_stats, 'total_change': calc_change(this_week_stats['total'], last_week_stats['total'], is_neg), 'avg_change': calc_change(this_week_stats['avg'], last_week_stats['avg'], is_neg)},
