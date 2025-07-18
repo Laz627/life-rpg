@@ -294,10 +294,11 @@
             </div>
         </main>
 
-        <!-- Add Task Form (Hidden by default) -->
-        <div id="add-task-form-container" class="form-container" style="display: none;">
+    <!-- Add Task Modal -->
+    <div id="addTaskModal" class="modal">
+        <div class="modal-content">
+            <h3>Add New Task</h3>
             <form id="add-task-form" class="add-entity-form">
-                <h4>Add New Task</h4>
                 <div class="form-group">
                     <label for="task-description">Task Description:</label>
                     <input type="text" id="task-description" required>
@@ -315,7 +316,6 @@
                         <div class="radio-option negative" data-value="negative">Negative Habit</div>
                     </div>
                 </div>
-                <!-- NEW: Numeric input fields -->
                 <div class="form-group-row" id="task-numeric-inputs">
                     <div class="form-group">
                         <label for="task-numeric-value">Target Value (Optional)</label>
@@ -339,14 +339,19 @@
                     <label for="task-stress">Stress Effect: <span id="task-stress-value-display">-3</span></label>
                     <input type="range" id="task-stress" min="-10" max="10" value="-3">
                 </div>
-                <button type="submit" class="btn-success">Add Task</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('addTaskModal')">Cancel</button>
+                    <button type="submit" class="btn-success">Add Task</button>
+                </div>
             </form>
         </div>
-
-        <!-- Add Recurring Task Form (Hidden by default) -->
-        <div id="add-recurring-task-form-container" class="form-container" style="display: none;">
+    </div>
+    
+    <!-- Add Recurring Task Modal -->
+    <div id="addRecurringTaskModal" class="modal">
+        <div class="modal-content">
+            <h3>Add Recurring Habit</h3>
             <form id="add-recurring-task-form" class="add-entity-form">
-                <h4>Add Recurring Habit</h4>
                 <div class="form-group">
                     <label for="recurring-task-description">Habit Description:</label>
                     <input type="text" id="recurring-task-description" required>
@@ -364,7 +369,6 @@
                         <div class="radio-option negative" data-value="negative">Negative Habit</div>
                     </div>
                 </div>
-                <!-- NEW: Numeric input fields -->
                 <div class="form-group-row" id="recurring-task-numeric-inputs">
                     <div class="form-group">
                         <label for="recurring-task-numeric-value">Target Value (Optional)</label>
@@ -388,14 +392,19 @@
                     <label for="recurring-task-stress">Stress Effect: <span id="recurring-task-stress-value-display">-3</span></label>
                     <input type="range" id="recurring-task-stress" min="-10" max="10" value="-3">
                 </div>
-                <button type="submit" class="btn-success">Add Habit</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('addRecurringTaskModal')">Cancel</button>
+                    <button type="submit" class="btn-success">Add Habit</button>
+                </div>
             </form>
         </div>
-
-        <!-- Add Quest Form (Updated with enhancement button) -->
-        <div id="add-quest-form-container" class="form-container" style="display: none;">
+    </div>
+    
+    <!-- Add Quest Modal -->
+    <div id="addQuestModal" class="modal">
+        <div class="modal-content">
+            <h3>Create New Quest</h3>
             <form id="add-quest-form" class="add-entity-form">
-                <h4>Create New Quest</h4>
                 <div class="form-group">
                     <label for="quest-title">Quest Title:</label>
                     <input type="text" id="quest-title" required>
@@ -426,14 +435,19 @@
                     <label for="quest-due-date">Due Date (Optional):</label>
                     <input type="date" id="quest-due-date">
                 </div>
-                <button type="submit" class="btn-success">Create Quest</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('addQuestModal')">Cancel</button>
+                    <button type="submit" class="btn-success">Create Quest</button>
+                </div>
             </form>
         </div>
-
-        <!-- NEW: Add Note Form (Hidden by default) -->
-        <div id="add-note-form-container" class="form-container" style="display: none;">
+    </div>
+    
+    <!-- Add Note Modal -->
+    <div id="addNoteModal" class="modal">
+        <div class="modal-content">
+            <h3 id="note-form-title">Add New Note</h3>
             <form id="add-note-form" class="add-entity-form">
-                <h4 id="note-form-title">Add New Note</h4>
                 <input type="hidden" id="note-id">
                 <div class="form-group">
                     <label for="note-title">Note Title:</label>
@@ -443,24 +457,26 @@
                     <label for="note-content">Note Content:</label>
                     <textarea id="note-content" rows="6" placeholder="Enter your note content here..."></textarea>
                 </div>
-                <div class="form-actions">
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('addNoteModal')">Cancel</button>
                     <button type="submit" class="btn-success" id="save-note-btn">Save Note</button>
-                    <button type="button" class="btn-secondary" id="cancel-note-btn">Cancel</button>
                 </div>
             </form>
         </div>
-
-        <!-- NEW: Add Checklist Item Form (Hidden by default) -->
-        <div id="add-checklist-item-form-container" class="form-container" style="display: none;">
+    </div>
+    
+    <!-- Add Checklist Item Modal -->
+    <div id="addChecklistItemModal" class="modal">
+        <div class="modal-content">
+            <h3>Add Checklist Item</h3>
             <form id="add-checklist-item-form" class="add-entity-form">
-                <h4>Add Checklist Item</h4>
                 <div class="form-group">
                     <label for="checklist-question">Question/Item:</label>
                     <input type="text" id="checklist-question" placeholder="e.g., Did I exercise today?" required>
                 </div>
-                <div class="form-actions">
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('addChecklistItemModal')">Cancel</button>
                     <button type="submit" class="btn-success">Add Item</button>
-                    <button type="button" class="btn-secondary" id="cancel-checklist-item-btn">Cancel</button>
                 </div>
             </form>
         </div>
