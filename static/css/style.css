@@ -1436,9 +1436,11 @@ input[type="range"]::-moz-range-thumb {
     font-size: 13px;
 }
 
+/* Match quest component styling exactly */
 .task-attribute-tag {
-    background-color: #6a1b9a;
-    color: white;
+    background-color: rgba(106, 27, 154, 0.1);
+    color: #6a1b9a;
+    border: 1px solid rgba(106, 27, 154, 0.2);
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 12px;
@@ -1446,8 +1448,9 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .task-xp-tag {
-    background-color: #28a745;
-    color: white;
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 12px;
@@ -1455,8 +1458,9 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .task-numeric-tag {
-    background-color: #17a2b8;
-    color: white;
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+    border: 1px solid rgba(23, 162, 184, 0.2);
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 12px;
@@ -1607,5 +1611,24 @@ input[type="range"]::-moz-range-thumb {
     
     .task-status-text.skipped {
         color: #ffc107;
+    }
+    
+    /* Dark theme for tags */
+    .task-attribute-tag {
+        background-color: rgba(106, 27, 154, 0.2);
+        color: #a855f7;
+        border-color: rgba(106, 27, 154, 0.3);
+    }
+    
+    .task-xp-tag {
+        background-color: rgba(40, 167, 69, 0.2);
+        color: #4ade80;
+        border-color: rgba(40, 167, 69, 0.3);
+    }
+    
+    .task-numeric-tag {
+        background-color: rgba(23, 162, 184, 0.2);
+        color: #22d3ee;
+        border-color: rgba(23, 162, 184, 0.3);
     }
 }
