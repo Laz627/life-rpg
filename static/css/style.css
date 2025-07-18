@@ -926,3 +926,173 @@ input:focus, select:focus, textarea:focus {
     margin-left: 10px;
     vertical-align: middle;
 }
+
+/* Remove background color from quest cards */
+.quest-card {
+    background-color: var(--card-bg-color); /* Reset to default card background */
+    border-left: 5px solid transparent; /* Remove colored left border */
+}
+
+.quest-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Add a badge for difficulty instead of whole card color */
+.quest-difficulty-badge {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+    color: #fff;
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
+.quest-difficulty-Easy { background-color: var(--success-color); }
+.quest-difficulty-Medium { background-color: var(--neutral-color); }
+.quest-difficulty-Hard { background-color: var(--warning-color); }
+.quest-difficulty-Epic { background-color: var(--negative-color); }
+
+
+/* Fix AI enhance button size */
+.quest-desc-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+#quest-description {
+    flex-grow: 1;
+}
+.enhance-desc-btn {
+    flex-shrink: 0; /* Prevent the button from shrinking */
+    white-space: nowrap; /* Keep text on one line */
+    padding: 8px 12px; /* Adjust padding for better size */
+    max-width: 200px; /* Set a max-width if needed */
+}
+
+/* --- New Styles for Credo, Notes, Daily Checklist --- */
+
+/* Credo Card */
+.credo-textarea {
+    width: 100%;
+    background-color: var(--input-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-color);
+    padding: 10px;
+    font-family: inherit;
+    font-size: 0.95em;
+    resize: vertical;
+}
+
+/* Notes Card */
+#notes-list-container .note-item {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+#notes-list-container .note-item:last-child {
+    border-bottom: none;
+}
+.note-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.note-item-header strong {
+    font-size: 1.1em;
+}
+.note-item p {
+    margin: 0 0 8px 0;
+    color: var(--text-light-color);
+}
+.note-item small {
+    font-size: 0.8em;
+    color: var(--text-muted-color);
+}
+.note-actions {
+    display: flex;
+    gap: 5px;
+}
+
+/* Daily Review / Checklist Card */
+.daily-checklist-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 5px;
+    border-bottom: 1px solid var(--border-color);
+}
+#daily-checklist-container .daily-checklist-item:last-of-type {
+    border-bottom: none;
+}
+.checklist-actions {
+    display: flex;
+    gap: 5px;
+}
+.checklist-actions .btn-small {
+    padding: 5px 8px;
+    font-size: 1em;
+}
+.checklist-actions .btn-small.active {
+    filter: brightness(1.2);
+    transform: scale(1.1);
+}
+
+/* Add Step Form (reusable for quest steps and checklist items) */
+.add-step-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+.add-step-form input[type="text"] {
+    flex-grow: 1;
+    background-color: var(--input-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 8px;
+    color: var(--text-color);
+}
+
+/* Modal for Note Editor */
+#noteEditorModal .modal-content {
+    width: 90%;
+    max-width: 600px;
+}
+
+/* Quest Checklist in Modal */
+.quest-checklist {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0;
+}
+.quest-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: var(--border-radius);
+}
+.quest-step input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+.quest-step-label {
+    flex-grow: 1;
+}
+.quest-step.completed .quest-step-label {
+    text-decoration: line-through;
+    color: var(--text-muted-color);
+}
+.quest-step-delete-btn {
+    cursor: pointer;
+    color: var(--text-muted-color);
+    padding: 5px;
+    border-radius: 50%;
+}
+.quest-step-delete-btn:hover {
+    color: var(--negative-color);
+    background-color: rgba(255, 0, 0, 0.1);
