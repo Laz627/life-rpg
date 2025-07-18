@@ -8,7 +8,6 @@ let quests = [];
 let milestones = { data: [], page: 1, totalPages: 1, perPage: 5 };
 let narratives = { data: [], page: 1, totalPages: 1, perPage: 3 };
 let heatmapCurrentDate = new Date(); // For heatmap navigation
-let notes = []; // For notes feature
 
 // --- DOM Ready Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -85,11 +84,6 @@ async function initializePageData() {
     await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
     await fetchAndRenderHabitProgressor();
     
-    // Initialize new features
-    await fetchAndRenderCredo();
-    await fetchAndRenderNotes();
-    await fetchAndRenderDailyChecklist(currentSelectedDate);
-    
     updateHeatmapControlsLabel();
 }
 
@@ -114,19 +108,11 @@ function setupEventListeners() {
     document.getElementById('next-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(1));
     document.getElementById('habit-progress-select').addEventListener('change', handleHabitProgressSelection);
 
-    // Listeners for Edit Quest Modal
+    // NEW Listeners for Edit Quest Modal
     document.getElementById('close-edit-quest-modal-btn').addEventListener('click', closeEditQuestModal);
     document.getElementById('save-quest-changes-btn').addEventListener('click', handleSaveQuestChanges);
     document.getElementById('add-quest-step-form').addEventListener('submit', handleAddQuestStep);
-    
-    // Listeners for Credo, Notes, and Daily Checklist
-    document.getElementById('save-credo-btn').addEventListener('click', handleSaveCredo);
-    document.getElementById('add-note-btn').addEventListener('click', () => openNoteEditor());
-    document.getElementById('close-note-editor-btn').addEventListener('click', closeNoteEditor);
-    document.getElementById('save-note-btn').addEventListener('click', handleSaveNote);
-    document.getElementById('add-checklist-item-form').addEventListener('submit', handleAddChecklistItem);
 }
-
 
 function toggleForm(formContainerId) {
     const container = document.getElementById(formContainerId);
@@ -205,6 +191,30 @@ async function enhanceQuestDescription() {
     enhanceBtn.textContent = '✨ Enhance Description (AI)';
 }
 
+async function completeNegativeHabit(taskId, didNegative) {
+    const result = await apiCall('/api/complete_negative_habit', 'POST', { 
+        task_id: taskId, 
+        did_negative: didNegative 
+    });
+    
+    if (result && result.success) {
+        await fetchAndRenderTasks(currentSelectedDate);
+        await fetchAndRenderAttributes();
+        await fetchAndRenderStats();
+        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
+        
+        const message = didNegative ? 
+            "Habit tracked. Don't worry, tomorrow is a new opportunity!" : 
+            "Great job avoiding that habit! You earned bonus XP!";
+        
+        setTimeout(() => alert(message), 100);
+        
+        if (Math.random() < 0.2) {
+           await fetchAndRenderMilestones(milestones.page);
+        }
+    }
+}
+
 async function skipTask(taskId) {
     if (!confirm('Mark this task as skipped? It will not count towards your progress.')) return;
     
@@ -225,7 +235,6 @@ async function handleDateChange(e) {
 
     await fetchAndRenderTasks(currentSelectedDate);
     await fetchAndRenderDailyNarrative(currentSelectedDate);
-    await fetchAndRenderDailyChecklist(currentSelectedDate);
 }
 
 async function handleAddTask(event) {
@@ -360,7 +369,7 @@ async function completeTask(taskId, isNumeric = false, unit = '', forcedValue = 
     if (forcedValue !== null) {
         payload.logged_numeric_value = forcedValue;
     } else if (isNumeric) {
-        const loggedValue = prompt(`How many ${unit} did you log? (Enter number)`);
+        const loggedValue = prompt(`How many ${unit} did you complete? (Enter 0 if none)`);
         if (loggedValue === null) {
             if (taskElement) taskElement.style.opacity = '1';
             return;
@@ -441,7 +450,8 @@ async function deleteMilestone(milestoneId) {
     }
 }
 
-// --- Quest Step Handlers ---
+// --- NEW Quest Step Handlers ---
+
 function openEditQuestModal(questId) {
     const quest = quests.find(q => q.id === questId);
     if (!quest) return;
@@ -507,11 +517,12 @@ async function handleAddQuestStep(event) {
     const result = await apiCall(`/api/quests/${questId}/steps`, 'POST', { description });
     if (result && result.success) {
         descriptionInput.value = '';
+        // Manually update local quest object and re-render modal checklist
         const quest = quests.find(q => q.id === parseInt(questId));
         if (quest) {
             quest.steps.push(result.step);
             renderQuestChecklistInModal(quest);
-            await fetchAndRenderQuests();
+            await fetchAndRenderQuests(); // Also update the main view
         }
     }
 }
@@ -519,12 +530,13 @@ async function handleAddQuestStep(event) {
 async function toggleQuestStep(stepId) {
     const result = await apiCall(`/api/quest_steps/${stepId}/toggle`, 'PUT');
     if (result && result.success) {
+        // Update local state and re-render
         const quest = quests.find(q => q.steps.some(s => s.id === stepId));
         if(quest) {
             const step = quest.steps.find(s => s.id === stepId);
             step.is_completed = result.is_completed;
-            renderQuestChecklistInModal(quest);
-            await fetchAndRenderQuests();
+            renderQuestChecklistInModal(quest); // Re-render modal if open
+            await fetchAndRenderQuests(); // Re-render main quest list
         }
     }
 }
@@ -542,102 +554,7 @@ async function deleteQuestStep(stepId, questId) {
     }
 }
 
-// --- Handlers for Credo, Notes, Daily Checklist ---
-async function handleSaveCredo() {
-    const content = document.getElementById('credo-content').value;
-    const result = await apiCall('/api/credo', 'POST', { content });
-    if (result && result.success) {
-        alert('Credo saved!');
-    }
-}
 
-function openNoteEditor(note = null) {
-    const modal = document.getElementById('noteEditorModal');
-    const title = document.getElementById('note-editor-title');
-    const idInput = document.getElementById('note-editor-id');
-    const titleInput = document.getElementById('note-title-input');
-    const contentInput = document.getElementById('note-content-input');
-
-    if (note) {
-        title.textContent = 'Edit Note';
-        idInput.value = note.id;
-        titleInput.value = note.title;
-        contentInput.value = note.content;
-    } else {
-        title.textContent = 'Add Note';
-        idInput.value = '';
-        titleInput.value = '';
-        contentInput.value = '';
-    }
-    modal.style.display = 'block';
-}
-
-function closeNoteEditor() {
-    document.getElementById('noteEditorModal').style.display = 'none';
-}
-
-async function handleSaveNote() {
-    const id = document.getElementById('note-editor-id').value;
-    const payload = {
-        title: document.getElementById('note-title-input').value,
-        content: document.getElementById('note-content-input').value
-    };
-
-    if (!payload.title) {
-        alert('Title is required for a note.');
-        return;
-    }
-
-    const endpoint = id ? `/api/notes/${id}` : '/api/notes';
-    const method = id ? 'PUT' : 'POST';
-
-    const result = await apiCall(endpoint, method, payload);
-    if (result && result.success) {
-        closeNoteEditor();
-        await fetchAndRenderNotes();
-    }
-}
-
-async function handleDeleteNote(noteId) {
-    if (!confirm('Are you sure you want to delete this note?')) return;
-    const result = await apiCall(`/api/notes/${noteId}`, 'DELETE');
-    if (result && result.success) {
-        await fetchAndRenderNotes();
-    }
-}
-
-async function handleAddChecklistItem(event) {
-    event.preventDefault();
-    const input = document.getElementById('new-checklist-item-question');
-    const question = input.value.trim();
-    if (!question) return;
-
-    const result = await apiCall('/api/daily_checklist_items', 'POST', { question });
-    if (result && result.success) {
-        input.value = '';
-        await fetchAndRenderDailyChecklist(currentSelectedDate);
-    }
-}
-
-async function handleLogChecklistItem(itemId, status) {
-    const payload = {
-        item_id: itemId,
-        date: currentSelectedDate,
-        status: status
-    };
-    await apiCall('/api/daily_checklist_logs', 'POST', payload);
-    await fetchAndRenderDailyChecklist(currentSelectedDate);
-}
-
-async function handleDeleteChecklistItem(itemId) {
-    if (!confirm('Are you sure you want to delete this daily checklist item permanently?')) return;
-    const result = await apiCall(`/api/daily_checklist_items/${itemId}`, 'DELETE');
-    if (result && result.success) {
-        await fetchAndRenderDailyChecklist(currentSelectedDate);
-    }
-}
-
-// --- API Call Abstraction ---
 async function apiCall(endpoint, method = 'GET', body = null) {
     const options = { method, headers: {} };
     if (body) {
@@ -660,7 +577,6 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     }
 }
 
-// --- Fetch & Render Functions ---
 async function fetchAndRenderAttributes() {
     attributes = await apiCall('/api/attributes') || [];
     renderAttributes();
@@ -748,26 +664,6 @@ async function fetchAndRenderHabitProgressor(refreshCurrent = false) {
     }
 }
 
-async function fetchAndRenderCredo() {
-    const data = await apiCall('/api/credo');
-    if (data) {
-        document.getElementById('credo-content').value = data.content;
-    }
-}
-
-async function fetchAndRenderNotes() {
-    notes = await apiCall('/api/notes') || [];
-    renderNotes();
-}
-
-async function fetchAndRenderDailyChecklist(date) {
-    const data = await apiCall(`/api/daily_checklist_logs?date=${date}`);
-    if (data) {
-        renderDailyChecklist(data);
-    }
-}
-
-// --- Render Functions ---
 function renderAttributes() {
     const container = document.getElementById('attributes-container');
     container.innerHTML = '';
@@ -807,7 +703,6 @@ function renderAttributes() {
     });
 }
 
-// CORRECTED RENDER TASKS FUNCTION
 function renderTasks() {
     const container = document.getElementById('task-list');
     container.innerHTML = '';
@@ -846,14 +741,13 @@ function renderTasks() {
         } else if (task.skipped) {
             actionButtons = '<span class="completion-status">⏭ Skipped</span>';
         } else if (task.is_negative_habit) {
-            // THIS IS THE CORRECTED LOGIC FOR NEGATIVE HABITS
-            if (task.numeric_unit && task.numeric_unit !== 'occurrence') {
+            if (task.numeric_unit) {
                 actionButtons = `<button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log Habit</button>`;
             } else {
                 actionButtons = `
                     <div class="task-actions negative-habit-actions">
-                        <button onclick="completeTask(${task.id}, false, '', 1)" class="btn-danger btn-small">Yes, I did it</button>
-                        <button onclick="completeTask(${task.id}, false, '', 0)" class="btn-success btn-small">No, I avoided it</button>
+                        <button onclick="completeTask(${task.id}, true, '', 1)" class="btn-danger btn-small">Yes, I did it</button>
+                        <button onclick="completeTask(${task.id}, true, '', 0)" class="btn-success btn-small">No, I avoided it</button>
                     </div>
                 `;
             }
@@ -975,6 +869,7 @@ function renderQuests() {
 
 function createQuestCard(quest) {
     const card = document.createElement('div');
+    // MODIFIED: Removed quest-difficulty class from card itself
     card.className = `quest-card ${quest.status !== 'Active' ? 'quest-completed-card' : ''}`;
     card.id = `quest-card-${quest.id}`;
     
@@ -985,7 +880,7 @@ function createQuestCard(quest) {
         const diffTime = dueDate - today;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         if (diffDays < 0) dueStatus = `<span style="color: var(--negative-color);">Overdue!</span>`;
-        else if (diffDays <= 0) dueStatus = `<span style="color: var(--neutral-color);">Due Today!</span>`;
+        else if (diffDays === 0) dueStatus = `<span style="color: var(--neutral-color);">Due Today!</span>`;
         else dueStatus = `Due in ${diffDays} day(s)`;
     } else if (quest.status === 'Completed') {
         dueStatus = `Completed: ${quest.completed_date}`;
@@ -996,6 +891,7 @@ function createQuestCard(quest) {
     const completedSteps = quest.steps.filter(s => s.is_completed).length;
     const totalSteps = quest.steps.length;
 
+    // NEW: Quest card structure with checklist
     card.innerHTML = `
         <div class="quest-title-line">
             <span class="quest-title">${quest.title}</span>
@@ -1027,11 +923,13 @@ function createQuestCard(quest) {
         </div>` : ''}
     `;
 
-    card.addEventListener('click', (e) => {
-        if (!e.target.closest('button')) {
-            openEditQuestModal(quest.id);
-        }
-    });
+    // NEW: Click to expand/collapse checklist
+    if (quest.status === 'Active') {
+        card.addEventListener('click', () => {
+            const checklistContainer = document.getElementById(`checklist-container-${quest.id}`);
+            checklistContainer.classList.toggle('expanded');
+        });
+    }
 
     return card;
 }
@@ -1080,7 +978,6 @@ function renderNarrativeHistory() {
     });
 }
 
-// CORRECTED RENDER HEATMAP
 function renderHeatmap(year, month, data) {
     const container = document.getElementById('calendar-heatmap-display');
     container.innerHTML = '';
@@ -1200,58 +1097,6 @@ function renderHabitProgress(data) {
     `;
 }
 
-function renderNotes() {
-    const container = document.getElementById('notes-list-container');
-    container.innerHTML = '';
-    if (!notes || notes.length === 0) {
-        container.innerHTML = '<p>No notes yet. Add one to get started!</p>';
-        return;
-    }
-
-    notes.forEach(note => {
-        const noteEl = document.createElement('div');
-        noteEl.className = 'note-item';
-        // Use JSON.stringify to safely embed the note object for editing
-        const noteData = JSON.stringify(note).replace(/"/g, '"');
-        noteEl.innerHTML = `
-            <div class="note-item-header">
-                <strong>${note.title}</strong>
-                <div class="note-actions">
-                    <button class="btn-secondary btn-small" onclick='openNoteEditor(${noteData})'>Edit</button>
-                    <button class="btn-danger btn-small" onclick="handleDeleteNote(${note.id})">Delete</button>
-                </div>
-            </div>
-            <p>${note.content.substring(0, 100)}${note.content.length > 100 ? '...' : ''}</p>
-            <small>Last updated: ${note.updated_at}</small>
-        `;
-        container.appendChild(noteEl);
-    });
-}
-
-function renderDailyChecklist(items) {
-    const container = document.getElementById('daily-checklist-container');
-    container.innerHTML = '';
-    if (!items || items.length === 0) {
-        container.innerHTML = '<p>Add a daily question below to start your review.</p>';
-        return;
-    }
-
-    items.forEach(item => {
-        const itemEl = document.createElement('div');
-        itemEl.className = 'daily-checklist-item';
-        itemEl.innerHTML = `
-            <span>${item.question}</span>
-            <div class="checklist-actions">
-                <button class="btn-success btn-small ${item.status === 'completed' ? 'active' : ''}" onclick="handleLogChecklistItem(${item.id}, 'completed')">✓</button>
-                <button class="btn-danger btn-small ${item.status === 'missed' ? 'active' : ''}" onclick="handleLogChecklistItem(${item.id}, 'missed')">✗</button>
-                <button class="btn-secondary btn-small" onclick="handleDeleteChecklistItem(${item.id})">🗑️</button>
-            </div>
-        `;
-        container.appendChild(itemEl);
-    });
-}
-
-// --- Utility and Helper Functions ---
 function populateAttributeDropdowns() {
     const attributeSelects = ['task-attribute', 'recurring-task-attribute', 'quest-attribute'];
     attributeSelects.forEach(selectId => {
@@ -1303,12 +1148,11 @@ function populateHabitProgressDropdown(habitList, currentSelection) {
     });
 }
 
-// CORRECTED PAGINATION FUNCTION
 function renderPagination(containerId, infoContainerId, pageDataObject, fetchCallback) {
     const container = document.getElementById(containerId);
     const infoContainer = document.getElementById(infoContainerId);
-    if(container) container.innerHTML = '';
-    if(infoContainer) infoContainer.innerHTML = '';
+    container.innerHTML = '';
+    if (infoContainer) infoContainer.innerHTML = '';
 
     if (!pageDataObject || pageDataObject.totalPages <= 1) return;
 
@@ -1332,7 +1176,7 @@ function renderPagination(containerId, infoContainerId, pageDataObject, fetchCal
         nextBtn.onclick = () => fetchCallback(pageDataObject.page + 1);
         container.appendChild(nextBtn);
     }
-    if (infoContainer) infoContainer.textContent = `Showing page ${pageDataObject.page} of ${pageDataObject.totalPages}.`;
+    if (infoContainer) infoContainer.textContent = `Showing page ${pageDataObject.page} of ${pageDataObject.totalPages}. Total items: ${pageDataObject.total || 'N/A'}`;
 }
 
 const tooltipElement = document.getElementById('tooltip');
