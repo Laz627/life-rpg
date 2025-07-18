@@ -1138,3 +1138,155 @@ input:focus, select:focus, textarea:focus {
         width: 100%;
     }
 }
+
+/* Modal Improvements */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(3px);
+}
+
+.modal-content {
+    background-color: var(--card-bg);
+    margin: 5% auto;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    border: 1px solid var(--border-color);
+}
+
+.modal-content h3 {
+    color: var(--primary-color);
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.5em;
+    text-align: center;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.modal-footer button {
+    min-width: 100px;
+}
+
+/* Form styling within modals */
+.add-entity-form {
+    margin: 0;
+}
+
+.add-entity-form .form-group {
+    margin-bottom: 16px;
+}
+
+.add-entity-form .form-group-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.add-entity-form .form-group-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+/* Quest description container in modal */
+.quest-desc-container {
+    position: relative;
+}
+
+.quest-desc-container textarea {
+    width: 100%;
+    min-height: 80px;
+    margin-bottom: 10px;
+}
+
+.enhance-desc-btn {
+    width: 100%;
+    font-size: 14px;
+}
+
+/* Radio groups in modals */
+.radio-group {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.radio-option {
+    padding: 8px 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    text-align: center;
+    font-size: 14px;
+}
+
+.radio-option:hover {
+    border-color: var(--primary-color);
+}
+
+.radio-option.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.radio-option.negative {
+    border-color: var(--danger-color);
+}
+
+.radio-option.negative.selected {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+/* Mobile responsive modals */
+@media (max-width: 768px) {
+    .modal-content {
+        margin: 10% auto;
+        width: 95%;
+        padding: 16px;
+    }
+    
+    .modal-footer {
+        flex-direction: column;
+    }
+    
+    .modal-footer button {
+        width: 100%;
+    }
+    
+    .add-entity-form .form-group-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+/* Remove old form-container styles since we're using modals now */
+.form-container {
+    display: none !important;
+}
