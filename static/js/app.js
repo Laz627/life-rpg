@@ -99,19 +99,35 @@ async function initializePageData() {
     updateHeatmapControlsLabel();
 }
 
-// --- Event Listener Setup ---
+// Add these new modal functions
+function openModal(modalId) {
+    document.getElementById(modalId).style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+
+// Updated setupEventListeners function
 function setupEventListeners() {
     document.getElementById('selected-date').addEventListener('change', handleDateChange);
-    document.getElementById('add-task-btn').addEventListener('click', () => toggleForm('add-task-form-container'));
+    document.getElementById('add-task-btn').addEventListener('click', () => openModal('addTaskModal'));
     document.getElementById('add-task-form').addEventListener('submit', handleAddTask);
     document.getElementById('task-stress').addEventListener('input', (e) => { document.getElementById('task-stress-value-display').textContent = e.target.value; });
     setupRadioGroup('task-type-radio', 'task-difficulty-group', 'task-stress', 'task-stress-value-display', 'task-numeric-inputs');
     document.getElementById('reset-day-btn').addEventListener('click', handleResetDay);
-    document.getElementById('add-recurring-task-btn').addEventListener('click', () => toggleForm('add-recurring-task-form-container'));
+    document.getElementById('add-recurring-task-btn').addEventListener('click', () => openModal('addRecurringTaskModal'));
     document.getElementById('add-recurring-task-form').addEventListener('submit', handleAddRecurringTask);
     document.getElementById('recurring-task-stress').addEventListener('input', (e) => { document.getElementById('recurring-task-stress-value-display').textContent = e.target.value; });
     setupRadioGroup('recurring-task-type-radio', 'recurring-task-difficulty-group', 'recurring-task-stress', 'recurring-task-stress-value-display', 'recurring-task-numeric-inputs');
-    document.getElementById('add-quest-btn').addEventListener('click', () => toggleForm('add-quest-form-container'));
+    document.getElementById('add-quest-btn').addEventListener('click', () => openModal('addQuestModal'));
     document.getElementById('add-quest-form').addEventListener('submit', handleAddQuest);
     document.getElementById('generate-quest-btn').addEventListener('click', handleGenerateQuest);
     document.getElementById('enhance-quest-desc-btn').addEventListener('click', enhanceQuestDescription);
@@ -120,7 +136,7 @@ function setupEventListeners() {
     document.getElementById('next-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(1));
     document.getElementById('habit-progress-select').addEventListener('change', handleHabitProgressSelection);
 
-    // NEW Listeners for Edit Quest Modal
+    // Quest editing
     document.getElementById('close-edit-quest-modal-btn').addEventListener('click', closeEditQuestModal);
     document.getElementById('save-quest-changes-btn').addEventListener('click', handleSaveQuestChanges);
     document.getElementById('add-quest-step-form').addEventListener('submit', handleAddQuestStep);
@@ -129,22 +145,142 @@ function setupEventListeners() {
     document.getElementById('save-credo-btn').addEventListener('click', handleSaveCredo);
     document.getElementById('add-note-btn').addEventListener('click', () => {
         resetNoteForm();
-        toggleForm('add-note-form-container');
+        openModal('addNoteModal');
     });
     document.getElementById('add-note-form').addEventListener('submit', handleAddNote);
-    document.getElementById('cancel-note-btn').addEventListener('click', () => {
-        resetNoteForm();
-        toggleForm('add-note-form-container');
-    });
     document.getElementById('checklist-date').addEventListener('change', handleChecklistDateChange);
-    document.getElementById('add-checklist-item-btn').addEventListener('click', () => toggleForm('add-checklist-item-form-container'));
+    document.getElementById('add-checklist-item-btn').addEventListener('click', () => openModal('addChecklistItemModal'));
     document.getElementById('add-checklist-item-form').addEventListener('submit', handleAddChecklistItem);
-    document.getElementById('cancel-checklist-item-btn').addEventListener('click', () => toggleForm('add-checklist-item-form-container'));
+    
+    // Set initial checklist date
+    document.getElementById('checklist-date').value = currentChecklistDate;
 }
 
-function toggleForm(formContainerId) {
-    const container = document.getElementById(formContainerId);
-    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+// Update form submission handlers to close modals
+async function handleAddTask(event) {
+    event.preventDefault();
+    const form = event.target;
+    const isNegative = form.querySelector('#task-type-radio .selected').dataset.value === 'negative';
+    const payload = {
+        description: form.querySelector('#task-description').value,
+        attribute: form.querySelector('#task-attribute').value,
+        difficulty: form.querySelector('#task-difficulty').value,
+        stress_effect: parseInt(form.querySelector('#task-stress').value),
+        is_negative_habit: isNegative,
+        date: currentSelectedDate,
+        numeric_value: isNegative ? null : form.querySelector('#task-numeric-value').value || null,
+        numeric_unit: isNegative ? null : form.querySelector('#task-numeric-unit').value || null
+    };
+
+    const result = await apiCall('/api/add_task', 'POST', payload);
+    if (result && result.success) {
+        form.reset();
+        setupRadioGroup('task-type-radio', 'task-difficulty-group', 'task-stress', 'task-stress-value-display', 'task-numeric-inputs');
+        closeModal('addTaskModal');
+        await fetchAndRenderTasks(currentSelectedDate);
+        if (!payload.is_negative_habit && payload.attribute) await fetchAndRenderAttributes();
+        await fetchAndRenderStats();
+        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
+        await fetchAndRenderHabitProgressor();
+    }
+}
+
+async function handleAddRecurringTask(event) {
+    event.preventDefault();
+    const form = event.target;
+    const isNegative = form.querySelector('#recurring-task-type-radio .selected').dataset.value === 'negative';
+    const payload = {
+        description: form.querySelector('#recurring-task-description').value,
+        attribute: form.querySelector('#recurring-task-attribute').value,
+        difficulty: form.querySelector('#recurring-task-difficulty').value,
+        stress_effect: parseInt(form.querySelector('#recurring-task-stress').value),
+        is_negative_habit: isNegative,
+        numeric_value: isNegative ? null : form.querySelector('#recurring-task-numeric-value').value || null,
+        numeric_unit: isNegative ? null : form.querySelector('#recurring-task-numeric-unit').value || null
+    };
+    const result = await apiCall('/api/recurring_tasks', 'POST', payload);
+    if (result && result.success) {
+        form.reset();
+        setupRadioGroup('recurring-task-type-radio', 'recurring-task-difficulty-group', 'recurring-task-stress', 'recurring-task-stress-value-display', 'recurring-task-numeric-inputs');
+        closeModal('addRecurringTaskModal');
+        await fetchAndRenderRecurringTasks();
+        await fetchAndRenderTasks(currentSelectedDate);
+        await fetchAndRenderHabitProgressor();
+    }
+}
+
+async function handleAddQuest(event) {
+    event.preventDefault();
+    const form = event.target;
+    const payload = {
+        title: form.querySelector('#quest-title').value,
+        description: form.querySelector('#quest-description').value,
+        difficulty: form.querySelector('#quest-difficulty').value,
+        attribute_focus: form.querySelector('#quest-attribute').value,
+        due_date: form.querySelector('#quest-due-date').value || null,
+    };
+    const diffToXp = {"Easy": 50, "Medium": 100, "Hard": 175, "Epic": 250};
+    payload.xp_reward = diffToXp[payload.difficulty] || 100;
+
+    const result = await apiCall('/api/add_quest', 'POST', payload);
+    if (result && result.success) {
+        form.reset();
+        closeModal('addQuestModal');
+        await fetchAndRenderQuests();
+        await fetchAndRenderStats();
+    }
+}
+
+async function handleAddNote(event) {
+    event.preventDefault();
+    const form = event.target;
+    const noteId = document.getElementById('note-id').value;
+    const isEditing = !!noteId;
+    
+    const payload = {
+        title: form.querySelector('#note-title').value,
+        content: form.querySelector('#note-content').value
+    };
+    
+    let result;
+    if (isEditing) {
+        result = await apiCall(`/api/notes/${noteId}`, 'PUT', payload);
+    } else {
+        result = await apiCall('/api/notes', 'POST', payload);
+    }
+    
+    if (result && result.success) {
+        resetNoteForm();
+        closeModal('addNoteModal');
+        await fetchAndRenderNotes();
+    }
+}
+
+async function handleAddChecklistItem(event) {
+    event.preventDefault();
+    const form = event.target;
+    const question = form.querySelector('#checklist-question').value;
+    
+    const result = await apiCall('/api/daily_checklist_items', 'POST', { question });
+    if (result && result.success) {
+        form.reset();
+        closeModal('addChecklistItemModal');
+        await fetchAndRenderDailyChecklist(currentChecklistDate);
+    }
+}
+
+// Update editNote function to use modal
+async function editNote(noteId) {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    
+    document.getElementById('note-form-title').textContent = 'Edit Note';
+    document.getElementById('note-id').value = note.id;
+    document.getElementById('note-title').value = note.title;
+    document.getElementById('note-content').value = note.content;
+    document.getElementById('save-note-btn').textContent = 'Update Note';
+    
+    openModal('addNoteModal');
 }
 
 function setupRadioGroup(groupId, difficultyGroupId, stressSliderId, stressValueDisplayId, numericInputsId) {
