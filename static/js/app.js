@@ -8,7 +8,7 @@ let quests = [];
 let milestones = { data: [], page: 1, totalPages: 1, perPage: 5 };
 let narratives = { data: [], page: 1, totalPages: 1, perPage: 3 };
 let heatmapCurrentDate = new Date(); // For heatmap navigation
-let notes = []; // NEW: For notes feature
+let notes = []; // For notes feature
 
 // --- DOM Ready Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -85,7 +85,7 @@ async function initializePageData() {
     await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
     await fetchAndRenderHabitProgressor();
     
-    // NEW: Initialize new features
+    // Initialize new features
     await fetchAndRenderCredo();
     await fetchAndRenderNotes();
     await fetchAndRenderDailyChecklist(currentSelectedDate);
@@ -114,12 +114,12 @@ function setupEventListeners() {
     document.getElementById('next-month-heatmap').addEventListener('click', () => navigateHeatmapMonth(1));
     document.getElementById('habit-progress-select').addEventListener('change', handleHabitProgressSelection);
 
-    // NEW Listeners for Edit Quest Modal
+    // Listeners for Edit Quest Modal
     document.getElementById('close-edit-quest-modal-btn').addEventListener('click', closeEditQuestModal);
     document.getElementById('save-quest-changes-btn').addEventListener('click', handleSaveQuestChanges);
     document.getElementById('add-quest-step-form').addEventListener('submit', handleAddQuestStep);
     
-    // NEW Listeners for Credo, Notes, and Daily Checklist
+    // Listeners for Credo, Notes, and Daily Checklist
     document.getElementById('save-credo-btn').addEventListener('click', handleSaveCredo);
     document.getElementById('add-note-btn').addEventListener('click', () => openNoteEditor());
     document.getElementById('close-note-editor-btn').addEventListener('click', closeNoteEditor);
@@ -205,30 +205,6 @@ async function enhanceQuestDescription() {
     enhanceBtn.textContent = '✨ Enhance Description (AI)';
 }
 
-async function completeNegativeHabit(taskId, didNegative) {
-    const result = await apiCall('/api/complete_negative_habit', 'POST', { 
-        task_id: taskId, 
-        did_negative: didNegative 
-    });
-    
-    if (result && result.success) {
-        await fetchAndRenderTasks(currentSelectedDate);
-        await fetchAndRenderAttributes();
-        await fetchAndRenderStats();
-        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
-        
-        const message = didNegative ? 
-            "Habit tracked. Don't worry, tomorrow is a new opportunity!" : 
-            "Great job avoiding that habit! You earned bonus XP!";
-        
-        setTimeout(() => alert(message), 100);
-        
-        if (Math.random() < 0.2) {
-           await fetchAndRenderMilestones(milestones.page);
-        }
-    }
-}
-
 async function skipTask(taskId) {
     if (!confirm('Mark this task as skipped? It will not count towards your progress.')) return;
     
@@ -249,7 +225,7 @@ async function handleDateChange(e) {
 
     await fetchAndRenderTasks(currentSelectedDate);
     await fetchAndRenderDailyNarrative(currentSelectedDate);
-    await fetchAndRenderDailyChecklist(currentSelectedDate); // NEW: Refresh checklist on date change
+    await fetchAndRenderDailyChecklist(currentSelectedDate);
 }
 
 async function handleAddTask(event) {
@@ -384,7 +360,7 @@ async function completeTask(taskId, isNumeric = false, unit = '', forcedValue = 
     if (forcedValue !== null) {
         payload.logged_numeric_value = forcedValue;
     } else if (isNumeric) {
-        const loggedValue = prompt(`How many ${unit} did you complete? (Enter 0 if none)`);
+        const loggedValue = prompt(`How many ${unit} did you log? (Enter number)`);
         if (loggedValue === null) {
             if (taskElement) taskElement.style.opacity = '1';
             return;
@@ -566,7 +542,7 @@ async function deleteQuestStep(stepId, questId) {
     }
 }
 
-// --- NEW Handlers for Credo, Notes, Daily Checklist ---
+// --- Handlers for Credo, Notes, Daily Checklist ---
 async function handleSaveCredo() {
     const content = document.getElementById('credo-content').value;
     const result = await apiCall('/api/credo', 'POST', { content });
@@ -670,13 +646,13 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     }
     try {
         const response = await fetch(endpoint, options);
+        const responseData = await response.json();
         if (!response.ok) {
-            const responseData = await response.json().catch(() => ({}));
             console.error(`API Error (${response.status}) ${endpoint}:`, responseData);
             alert(`Error: ${responseData.error || responseData.message || response.statusText}`);
             return null;
         }
-        return response.json();
+        return responseData;
     } catch (error) {
         console.error('Fetch API Error:', error, 'Endpoint:', endpoint);
         alert('A network or unexpected error occurred. Please check the console.');
@@ -718,7 +694,7 @@ async function fetchAndRenderMilestones(page) {
         milestones.page = data.current_page;
         milestones.totalPages = data.pages;
         renderMilestones();
-        renderPagination('milestones-pagination', null, milestones, fetchAndRenderMilestones);
+        renderPagination('milestones-pagination', 'milestones-pagination-info', milestones, fetchAndRenderMilestones);
     }
 }
 
@@ -747,7 +723,7 @@ async function fetchAndRenderNarrativeHistory(page) {
         narratives.page = data.current_page;
         narratives.totalPages = data.pages;
         renderNarrativeHistory();
-        renderPagination('narratives-pagination', null, narratives, fetchAndRenderNarrativeHistory);
+        renderPagination('narratives-pagination', 'narratives-pagination-info', narratives, fetchAndRenderNarrativeHistory);
     }
 }
 
@@ -772,7 +748,6 @@ async function fetchAndRenderHabitProgressor(refreshCurrent = false) {
     }
 }
 
-// --- NEW Fetch and Render Functions ---
 async function fetchAndRenderCredo() {
     const data = await apiCall('/api/credo');
     if (data) {
@@ -812,10 +787,27 @@ function renderAttributes() {
             </div>
             <small>Total XP: ${attr.total_xp}</small>
         `;
+        if (attr.subskills && attr.subskills.length > 0) {
+            attr.subskills.filter(sub => sub.total_xp > 0).forEach(sub => {
+                const subEl = document.createElement('div');
+                subEl.className = 'subskill-progress';
+                subEl.innerHTML = `
+                    <div>
+                        <span>${sub.name}</span>
+                        <span class="subskill-level">Lvl ${sub.level}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" style="width: ${sub.progress_percent}%" title="${sub.xp_progress}/${sub.xp_needed} XP">${Math.round(sub.progress_percent)}%</div>
+                    </div>
+                `;
+                attrEl.appendChild(subEl);
+            });
+        }
         container.appendChild(attrEl);
     });
 }
 
+// CORRECTED RENDER TASKS FUNCTION
 function renderTasks() {
     const container = document.getElementById('task-list');
     container.innerHTML = '';
@@ -824,10 +816,29 @@ function renderTasks() {
     }
     tasks.forEach(task => {
         const taskEl = document.createElement('li');
-        taskEl.className = `task-item ${task.completed ? 'task-completed' : ''} ${task.skipped ? 'task-skipped' : ''} ${task.is_negative_habit ? 'negative-habit' : ''}`;
+        let taskClasses = 'task-item';
         
-        let attributeText = task.attribute ? `[${task.attribute}]` : '';
+        if (task.completed) taskClasses += ' task-completed';
+        if (task.skipped) taskClasses += ' task-skipped';
+        if (task.is_negative_habit) taskClasses += ' negative-habit';
+        
+        taskEl.className = taskClasses;
+        
+        let attributeText = task.attribute ? `[${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}]` : '';
         let xpText = task.is_negative_habit ? `(Avoid: ${task.xp || 25} XP)` : `(${task.xp} XP)`;
+        let numericText = '';
+
+        if (task.numeric_unit) {
+            if (task.completed && task.logged_numeric_value !== null) {
+                let goalText = task.numeric_value !== null ? `(Goal: ${task.numeric_value} ${task.numeric_unit})` : '';
+                numericText = `<span class="completion-status">Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText}</span>`;
+            } else if (task.numeric_value !== null) {
+                numericText = `(Goal: ${task.numeric_value} ${task.numeric_unit})`;
+            } else {
+                 numericText = `(${task.numeric_unit})`;
+            }
+        }
+        
         let actionButtons = '';
         
         if (task.completed) {
@@ -835,20 +846,28 @@ function renderTasks() {
         } else if (task.skipped) {
             actionButtons = '<span class="completion-status">⏭ Skipped</span>';
         } else if (task.is_negative_habit) {
-            actionButtons = `
-                <div class="task-actions negative-habit-actions">
-                    <button onclick="completeNegativeHabit(${task.id}, true)" class="btn-danger btn-small">Yes, I did it</button>
-                    <button onclick="completeNegativeHabit(${task.id}, false)" class="btn-success btn-small">No, I avoided it</button>
-                </div>
-            `;
+            // THIS IS THE CORRECTED LOGIC FOR NEGATIVE HABITS
+            if (task.numeric_unit && task.numeric_unit !== 'occurrence') {
+                actionButtons = `<button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log Habit</button>`;
+            } else {
+                actionButtons = `
+                    <div class="task-actions negative-habit-actions">
+                        <button onclick="completeTask(${task.id}, false, '', 1)" class="btn-danger btn-small">Yes, I did it</button>
+                        <button onclick="completeTask(${task.id}, false, '', 0)" class="btn-success btn-small">No, I avoided it</button>
+                    </div>
+                `;
+            }
         } else {
-            actionButtons = `<button onclick="completeTask(${task.id})" class="btn-success btn-small">✓ Complete</button>
-                             <button onclick="skipTask(${task.id})" class="btn-warning btn-small">⏭ Skip</button>`;
+            const isNumeric = !!task.numeric_unit;
+            actionButtons = `
+                <button onclick="completeTask(${task.id}, ${isNumeric}, '${task.numeric_unit}')" class="btn-success btn-small">✓ Complete</button>
+                <button onclick="skipTask(${task.id})" class="btn-warning btn-small">⏭ Skip</button>
+            `;
         }
-
+        
         taskEl.innerHTML = `
             <div>
-                ${task.description} ${attributeText} ${xpText}
+                ${task.description} ${attributeText} ${xpText} ${numericText}
                 <small>Stress Penalty: +${Math.abs(task.stress_effect)}</small>
             </div>
             <div class="task-actions">
@@ -886,7 +905,9 @@ function renderCharacterStats() {
             const statEl = document.createElement('div');
             statEl.className = 'stat-entry';
             let statValue = characterStats[statName];
-            statEl.innerHTML = `<strong>${statName.replace(/([A-Z])/g, ' $1').trim()}:</strong> <span>${statValue}</span>`;
+            let style = (statName === 'Tasks Remaining Today' && statValue > 0) ? 
+                ' style="color: var(--negative-color); font-weight: bold;"' : '';
+            statEl.innerHTML = `<strong>${statName.replace(/([A-Z])/g, ' $1').trim()}:</strong> <span${style}>${statValue}</span>`;
             container.appendChild(statEl);
         }
     });
@@ -896,6 +917,7 @@ function renderCharacterStats() {
         const stressPercent = Math.min(100, Math.max(0, characterStats['Stress']));
         stressFill.style.width = `${stressPercent}%`;
         stressFill.textContent = `${characterStats['Stress']}%`;
+        stressFill.title = `Stress: ${characterStats['Stress']}%`;
     }
 }
 
@@ -958,11 +980,17 @@ function createQuestCard(quest) {
     
     let dueStatus = '';
     if (quest.status === 'Active' && quest.due_date) {
-        const diffDays = Math.ceil((new Date(quest.due_date) - new Date()) / (1000 * 60 * 60 * 24));
+        const dueDate = new Date(quest.due_date + "T23:59:59");
+        const today = new Date();
+        const diffTime = dueDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         if (diffDays < 0) dueStatus = `<span style="color: var(--negative-color);">Overdue!</span>`;
+        else if (diffDays <= 0) dueStatus = `<span style="color: var(--neutral-color);">Due Today!</span>`;
         else dueStatus = `Due in ${diffDays} day(s)`;
     } else if (quest.status === 'Completed') {
         dueStatus = `Completed: ${quest.completed_date}`;
+    } else {
+        dueStatus = 'No due date';
     }
 
     const completedSteps = quest.steps.filter(s => s.is_completed).length;
@@ -979,18 +1007,29 @@ function createQuestCard(quest) {
             <span class="quest-xp-tag">XP: ${quest.xp_reward}</span>
             <span>${dueStatus}</span>
         </div>
+
+        <div id="checklist-container-${quest.id}" class="quest-checklist-container">
+             <ul class="quest-checklist">
+                ${quest.steps.map(step => `
+                    <li class="quest-step ${step.is_completed ? 'completed' : ''}">
+                        <input type="checkbox" id="step-${step.id}" ${step.is_completed ? 'checked' : ''} disabled>
+                        <label for="step-${step.id}" class="quest-step-label">${step.description}</label>
+                    </li>
+                `).join('')}
+            </ul>
+        </div>
+        
         ${quest.status === 'Active' ? `
         <div class="quest-actions-bar">
-            <button onclick="event.stopPropagation(); completeQuest(${quest.id})" class="btn-success btn-small">⚔ Complete</button>
-            <button onclick="event.stopPropagation(); openEditQuestModal(${quest.id})" class="btn-secondary btn-small">⚙️ Edit/Steps</button>
+            <button onclick="event.stopPropagation(); completeQuest(${quest.id})" class="btn-success btn-small">⚔ Complete Quest</button>
+            <button onclick="event.stopPropagation(); openEditQuestModal(${quest.id})" class="btn-secondary btn-small">⚙️ Edit / View Steps</button>
             <span class="quest-progress-text">${totalSteps > 0 ? `${completedSteps}/${totalSteps} Steps` : 'No steps'}</span>
         </div>` : ''}
     `;
-    
-    // Click to open the edit modal directly
+
     card.addEventListener('click', (e) => {
-        if(e.target.tagName !== 'BUTTON') {
-             openEditQuestModal(quest.id);
+        if (!e.target.closest('button')) {
+            openEditQuestModal(quest.id);
         }
     });
 
@@ -1007,10 +1046,13 @@ function renderMilestones() {
         const el = document.createElement('div');
         el.className = 'milestone';
         el.innerHTML = `
-            <button class="btn-danger btn-small" style="float:right;" onclick="deleteMilestone(${m.id})">✕</button>
+            <button class="btn-danger btn-small" style="float:right; opacity:0.7;" onclick="deleteMilestone(${m.id})" title="Delete Achievement">✕</button>
             <div class="milestone-title">${m.title}</div>
             <p class="milestone-description">${m.description}</p>
-            <div class="milestone-date">${m.date} (${m.type})</div>
+            <div class="milestone-date">
+                <span>${m.date} (${m.type})</span>
+                ${m.attribute ? `<span>— ${m.attribute}</span>` : ''}
+            </div>
         `;
         container.appendChild(el);
     });
@@ -1018,59 +1060,87 @@ function renderMilestones() {
 
 function renderDailyNarrative(narrativeContent) {
     const container = document.getElementById('daily-narrative').querySelector('.narrative-content');
-    container.innerHTML = narrativeContent ? narrativeContent.replace(/\n/g, '<br>') : 'No narrative available for this day.';
+    container.innerHTML = narrativeContent ? narrativeContent.replace(/\n/g, '<br>') : 'No narrative available for this day. Perhaps an adventure awaits?';
 }
 
 function renderNarrativeHistory() {
     const container = document.getElementById('narrative-history-container');
     container.innerHTML = '';
     if (!narratives.data || narratives.data.length === 0) {
-        container.innerHTML = '<p>No past adventures recorded.</p>'; return;
+        container.innerHTML = '<p>No past adventures recorded in this chapter.</p>'; return;
     }
     narratives.data.forEach(n => {
         const el = document.createElement('div');
         el.className = 'narrative-item';
-        el.innerHTML = `<div class="narrative-date"><strong>${n.date}</strong></div>
-                        <div class="narrative-content">${n.narrative.replace(/\n/g, '<br>')}</div>`;
+        el.innerHTML = `
+            <div class="narrative-date"><strong>${n.date}</strong></div>
+            <div class="narrative-content">${n.narrative.replace(/\n/g, '<br>')}</div>
+        `;
         container.appendChild(el);
     });
 }
 
+// CORRECTED RENDER HEATMAP
 function renderHeatmap(year, month, data) {
     const container = document.getElementById('calendar-heatmap-display');
     container.innerHTML = '';
+    if (!data) { container.innerHTML = '<p>Loading heatmap data...</p>'; return; }
+
     const activityMap = new Map(data.map(item => [item.date, { count: item.count, xp: item.xp }]));
-    const max_xp = Math.max(...data.map(d => d.xp).filter(xp => xp > 0), 0);
+    
+    const xpValues = data.map(d => d.xp).filter(xp => xp > 0);
+    const max_xp = xpValues.length > 0 ? Math.max(...xpValues) : 0;
     
     const table = document.createElement('table');
     table.className = 'calendar-table';
     const headerRow = table.insertRow();
-    ["S", "M", "T", "W", "T", "F", "S"].forEach(dayName => {
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach(dayName => {
         const th = document.createElement('th'); th.textContent = dayName; headerRow.appendChild(th);
     });
 
-    const firstDay = new Date(year, month - 1, 1).getDay();
+    const firstDayOfMonth = new Date(year, month - 1, 1).getDay();
     const daysInMonth = new Date(year, month, 0).getDate();
-    let currentDay = 1;
 
+    let currentDay = 1;
     for (let i = 0; i < 6; i++) {
         const weekRow = table.insertRow();
         for (let j = 0; j < 7; j++) {
             const dayCell = weekRow.insertCell();
-            if ((i === 0 && j < firstDay) || currentDay > daysInMonth) {
+            if (i === 0 && j < firstDayOfMonth) {
                 dayCell.className = 'calendar-empty-day';
-            } else {
+            } else if (currentDay <= daysInMonth) {
                 dayCell.className = 'calendar-day';
-                dayCell.textContent = currentDay;
+                const dayNumberDiv = document.createElement('div');
+                dayNumberDiv.className = 'calendar-day-number';
+                dayNumberDiv.textContent = currentDay;
+                dayCell.appendChild(dayNumberDiv);
+
                 const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(currentDay).padStart(2,'0')}`;
                 const activity = activityMap.get(dateStr);
-                let intensity = 0;
-                if (activity && activity.xp > 0) {
-                    intensity = Math.ceil((activity.xp / max_xp) * 4);
+                let intensityLevel = 0;
+                if (activity) {
+                    const dataDiv = document.createElement('div');
+                    dataDiv.className = 'calendar-day-data';
+                    dataDiv.innerHTML = `Tasks: ${activity.count}<br>XP: ${activity.xp}`;
+                    dayCell.appendChild(dataDiv);
+                    
+                    const currentXp = activity.xp;
+                    if (max_xp > 0) {
+                        if (currentXp > 0 && currentXp <= max_xp * 0.25) intensityLevel = 1;
+                        else if (currentXp > max_xp * 0.25 && currentXp <= max_xp * 0.5) intensityLevel = 2;
+                        else if (currentXp > max_xp * 0.5 && currentXp <= max_xp * 0.75) intensityLevel = 3;
+                        else if (currentXp > max_xp * 0.75) intensityLevel = 4;
+                    } else if (currentXp > 0) {
+                        intensityLevel = 2;
+                    }
+                    
+                    dayCell.addEventListener('mouseenter', (e) => showTooltip(e, `${dateStr}: ${activity.count} tasks, ${activity.xp} XP`));
+                    dayCell.addEventListener('mouseleave', hideTooltip);
                 }
-                dayCell.classList.add(`day-level-${intensity}`);
-                dayCell.title = activity ? `${dateStr}: ${activity.count} tasks, ${activity.xp} XP` : `${dateStr}: No activity`;
+                dayCell.classList.add(`day-level-${intensityLevel}`);
                 currentDay++;
+            } else {
+                dayCell.className = 'calendar-empty-day';
             }
         }
         if (currentDay > daysInMonth) break;
@@ -1081,7 +1151,21 @@ function renderHeatmap(year, month, data) {
 function renderHabitProgress(data) {
     const weekContainer = document.getElementById('habit-progress-week');
     const monthContainer = document.getElementById('habit-progress-month');
-    const { unit } = data;
+    const { unit, is_negative } = data;
+
+    const progressHeader = document.getElementById('habit-progress-header');
+    if (progressHeader) {
+        let existingLabel = progressHeader.querySelector('.habit-goal-label');
+        if (existingLabel) existingLabel.remove();
+        progressHeader.textContent = 'Week-over-Week';
+        
+        if (is_negative) {
+            const label = document.createElement('span');
+            label.className = 'habit-goal-label';
+            label.textContent = '(Goal: Lower is Better)';
+            progressHeader.appendChild(label);
+        }
+    }
 
     const formatChange = (change) => {
         if (change > 0) return `<span class="progress-change positive">▲ ${change}%</span>`;
@@ -1090,16 +1174,32 @@ function renderHabitProgress(data) {
     };
 
     weekContainer.innerHTML = `
-        <div class="progress-period"><h5>Last Week</h5><div class="progress-stat">Avg: ${data.week.last_week.avg.toFixed(1)} ${unit}</div></div>
-        <div class="progress-period"><h5>This Week</h5><div class="progress-stat">Avg: ${data.week.this_week.avg.toFixed(1)} ${unit} ${formatChange(data.week.avg_change)}</div></div>
+        <div class="progress-period">
+            <h5>Last Week</h5>
+            <div class="progress-stat">Total: <span class="value">${data.week.last_week.total.toFixed(1)}</span> ${unit}</div>
+            <div class="progress-stat">Daily Avg: <span class="value">${data.week.last_week.avg.toFixed(1)}</span> ${unit}</div>
+        </div>
+        <div class="progress-period">
+            <h5>This Week</h5>
+            <div class="progress-stat">Total: <span class="value">${data.week.this_week.total.toFixed(1)}</span> ${unit} ${formatChange(data.week.total_change)}</div>
+            <div class="progress-stat">Daily Avg: <span class="value">${data.week.this_week.avg.toFixed(1)}</span> ${unit} ${formatChange(data.week.avg_change)}</div>
+        </div>
     `;
+
     monthContainer.innerHTML = `
-        <div class="progress-period"><h5>Last Month</h5><div class="progress-stat">Avg: ${data.month.last_month.avg.toFixed(1)} ${unit}</div></div>
-        <div class="progress-period"><h5>This Month</h5><div class="progress-stat">Avg: ${data.month.this_month.avg.toFixed(1)} ${unit} ${formatChange(data.month.avg_change)}</div></div>
+        <div class="progress-period">
+            <h5>Last Month</h5>
+            <div class="progress-stat">Total: <span class="value">${data.month.last_month.total.toFixed(1)}</span> ${unit}</div>
+            <div class="progress-stat">Daily Avg: <span class="value">${data.month.last_month.avg.toFixed(1)}</span> ${unit}</div>
+        </div>
+        <div class="progress-period">
+            <h5>This Month</h5>
+            <div class="progress-stat">Total: <span class="value">${data.month.this_month.total.toFixed(1)}</span> ${unit} ${formatChange(data.month.total_change)}</div>
+            <div class="progress-stat">Daily Avg: <span class="value">${data.month.this_month.avg.toFixed(1)}</span> ${unit} ${formatChange(data.month.avg_change)}</div>
+        </div>
     `;
 }
 
-// --- NEW Render Functions for New Features ---
 function renderNotes() {
     const container = document.getElementById('notes-list-container');
     container.innerHTML = '';
@@ -1111,11 +1211,13 @@ function renderNotes() {
     notes.forEach(note => {
         const noteEl = document.createElement('div');
         noteEl.className = 'note-item';
+        // Use JSON.stringify to safely embed the note object for editing
+        const noteData = JSON.stringify(note).replace(/"/g, '"');
         noteEl.innerHTML = `
             <div class="note-item-header">
                 <strong>${note.title}</strong>
                 <div class="note-actions">
-                    <button class="btn-secondary btn-small" onclick="openNoteEditor({id: ${note.id}, title: \`${note.title}\`, content: \`${note.content}\`})">Edit</button>
+                    <button class="btn-secondary btn-small" onclick='openNoteEditor(${noteData})'>Edit</button>
                     <button class="btn-danger btn-small" onclick="handleDeleteNote(${note.id})">Delete</button>
                 </div>
             </div>
@@ -1149,7 +1251,6 @@ function renderDailyChecklist(items) {
     });
 }
 
-
 // --- Utility and Helper Functions ---
 function populateAttributeDropdowns() {
     const attributeSelects = ['task-attribute', 'recurring-task-attribute', 'quest-attribute'];
@@ -1181,7 +1282,7 @@ function populateHabitProgressDropdown(habitList, currentSelection) {
     selectEl.innerHTML = '';
 
     if (!habitList || habitList.length === 0) {
-        selectEl.innerHTML = '<option value="">-- No numeric habits --</option>';
+        selectEl.innerHTML = '<option value="">-- No numeric habits tracked yet --</option>';
         document.getElementById('habit-progress-display').style.display = 'none';
         return;
     }
@@ -1202,32 +1303,57 @@ function populateHabitProgressDropdown(habitList, currentSelection) {
     });
 }
 
+// CORRECTED PAGINATION FUNCTION
 function renderPagination(containerId, infoContainerId, pageDataObject, fetchCallback) {
     const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
-    
+    const infoContainer = document.getElementById(infoContainerId);
+    if(container) container.innerHTML = '';
+    if(infoContainer) infoContainer.innerHTML = '';
+
     if (!pageDataObject || pageDataObject.totalPages <= 1) return;
 
     if (pageDataObject.page > 1) {
         const prevBtn = document.createElement('button');
-        prevBtn.innerHTML = '«';
+        prevBtn.innerHTML = '« Prev';
         prevBtn.className = 'btn-secondary btn-small';
         prevBtn.onclick = () => fetchCallback(pageDataObject.page - 1);
         container.appendChild(prevBtn);
     }
     
     const pageNumSpan = document.createElement('span');
-    pageNumSpan.textContent = ` ${pageDataObject.page} / ${pageDataObject.totalPages} `;
+    pageNumSpan.textContent = ` Page ${pageDataObject.page} of ${pageDataObject.totalPages} `;
+    pageNumSpan.style.margin = "0 10px";
     container.appendChild(pageNumSpan);
 
     if (pageDataObject.page < pageDataObject.totalPages) {
         const nextBtn = document.createElement('button');
-        nextBtn.innerHTML = '»';
+        nextBtn.innerHTML = 'Next »';
         nextBtn.className = 'btn-secondary btn-small';
         nextBtn.onclick = () => fetchCallback(pageDataObject.page + 1);
         container.appendChild(nextBtn);
     }
+    if (infoContainer) infoContainer.textContent = `Showing page ${pageDataObject.page} of ${pageDataObject.totalPages}.`;
+}
+
+const tooltipElement = document.getElementById('tooltip');
+function showTooltip(event, text) {
+    if (!tooltipElement) return;
+    tooltipElement.innerHTML = text;
+    tooltipElement.style.display = 'block';
+    let x = event.pageX + 15;
+    let y = event.pageY + 15;
+    if (x + tooltipElement.offsetWidth > window.innerWidth) {
+        x = event.pageX - tooltipElement.offsetWidth - 15;
+    }
+    if (y + tooltipElement.offsetHeight > window.innerHeight) {
+        y = event.pageY - tooltipElement.offsetHeight - 15;
+    }
+    tooltipElement.style.left = x + 'px';
+    tooltipElement.style.top = y + 'px';
+}
+function hideTooltip() {
+    if (!tooltipElement) return;
+    tooltipElement.style.display = 'none';
 }
 
 function updateHeatmapControlsLabel() {
