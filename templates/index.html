@@ -24,7 +24,7 @@
         </div>
     </div>
 
-    <!-- Edit Quest Modal -->
+    <!-- NEW: Edit Quest Modal -->
     <div id="editQuestModal" class="modal">
         <div class="modal-content modal-lg">
             <h3>Edit Quest</h3>
@@ -52,28 +52,6 @@
             <div class="modal-footer">
                 <button id="close-edit-quest-modal-btn" type="button" class="btn-secondary">Close</button>
                 <button id="save-quest-changes-btn" type="button" class="btn-primary">Save Changes</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- NEW: Note Editor Modal -->
-    <div id="noteEditorModal" class="modal">
-        <div class="modal-content">
-            <h3 id="note-editor-title">Add Note</h3>
-            <form id="note-editor-form">
-                <input type="hidden" id="note-editor-id">
-                <div class="form-group">
-                    <label for="note-title-input">Title:</label>
-                    <input type="text" id="note-title-input" required>
-                </div>
-                <div class="form-group">
-                    <label for="note-content-input">Content:</label>
-                    <textarea id="note-content-input" rows="8"></textarea>
-                </div>
-            </form>
-            <div class="modal-footer">
-                <button id="close-note-editor-btn" type="button" class="btn-secondary">Close</button>
-                <button id="save-note-btn" type="button" class="btn-primary">Save Note</button>
             </div>
         </div>
     </div>
@@ -151,6 +129,7 @@
                             <div class="radio-option negative" data-value="negative">Negative Habit</div>
                         </div>
                     </div>
+                    <!-- NEW: Numeric input fields -->
                     <div class="form-group-row" id="task-numeric-inputs">
                         <div class="form-group">
                             <label for="task-numeric-value">Target Value (Optional)</label>
@@ -191,37 +170,28 @@
                 </div>
             </div>
 
-            <!-- NEW: Daily Checklist Card -->
+            <!-- NEW: Habit Progress Card -->
             <div class="card">
                 <div class="card-header">
-                    <h2>Daily Review</h2>
-                    <span class="card-icon">🧘</span>
+                    <h2>Habit Progress</h2>
+                    <span class="card-icon">📈</span>
                 </div>
                 <div class="card-content">
-                    <div id="daily-checklist-container" class="scrollable-content">
-                        <!-- Checklist items will be rendered here -->
+                    <div class="form-group">
+                        <label for="habit-progress-select">Select a habit to see its progress:</label>
+                        <select id="habit-progress-select">
+                            <option value="">-- No numeric habits tracked yet --</option>
+                        </select>
                     </div>
-                    <form id="add-checklist-item-form" class="add-step-form">
-                        <input type="text" id="new-checklist-item-question" placeholder="Add new daily question" required>
-                        <button type="submit" class="btn-success btn-small">+ Add</button>
-                    </form>
+                    <div id="habit-progress-display" style="display: none;">
+                        <h4 class="section-subheader" id="habit-progress-header">Week-over-Week</h4>
+                        <div id="habit-progress-week" class="progress-comparison"></div>
+                        <h4 class="section-subheader">Month-over-Month</h4>
+                        <div id="habit-progress-month" class="progress-comparison"></div>
+                    </div>
                 </div>
             </div>
             
-            <!-- NEW: Credo Card -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>My Credo</h2>
-                    <span class="card-icon">🎯</span>
-                </div>
-                <div class="card-content">
-                    <textarea id="credo-content" class="credo-textarea" rows="6" placeholder="Define your core principles..."></textarea>
-                </div>
-                <div class="card-actions">
-                    <button id="save-credo-btn" class="btn-primary">Save Credo</button>
-                </div>
-            </div>
-
             <!-- Recurring Tasks Card -->
             <div class="card">
                 <div class="card-header">
@@ -259,6 +229,7 @@
                             <div class="radio-option negative" data-value="negative">Negative Habit</div>
                         </div>
                     </div>
+                    <!-- NEW: Numeric input fields -->
                     <div class="form-group-row" id="recurring-task-numeric-inputs">
                         <div class="form-group">
                             <label for="recurring-task-numeric-value">Target Value (Optional)</label>
@@ -358,55 +329,18 @@
                 </div>
             </div>
 
-            <!-- NEW: Notes Card -->
+            <!-- Milestones & Achievements Card -->
             <div class="card">
                 <div class="card-header">
-                    <h2>Notes & Thoughts</h2>
-                    <span class="card-icon">📝</span>
-                </div>
-                <div class="card-content">
-                    <div id="notes-list-container" class="scrollable-content">
-                        <!-- Notes will be listed here -->
-                    </div>
-                </div>
-                <div class="card-actions">
-                    <button id="add-note-btn" class="btn-primary">+ Add Note</button>
-                </div>
-            </div>
-
-            <!-- Narrative History Card -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>Adventure History</h2>
-                    <span class="card-icon">📚</span>
+                    <h2>Achievements</h2>
+                    <span class="card-icon">🏆</span>
                 </div>
                 <div class="card-content">
                     <div class="scrollable-content">
-                        <div id="narrative-history-container"></div>
+                        <div id="milestones-container"></div>
                     </div>
-                    <div id="narratives-pagination" class="pagination"></div>
-                </div>
-            </div>
-            
-            <!-- Habit Progressor Card -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>Habit Progress</h2>
-                    <span class="card-icon">📈</span>
-                </div>
-                <div class="card-content">
-                     <div class="form-group">
-                        <label for="habit-progress-select">Select a habit to see its progress:</label>
-                        <select id="habit-progress-select">
-                            <option value="">-- No numeric habits tracked yet --</option>
-                        </select>
-                    </div>
-                    <div id="habit-progress-display" style="display: none;">
-                        <h4 class="section-subheader" id="habit-progress-header">Week-over-Week</h4>
-                        <div id="habit-progress-week" class="progress-comparison"></div>
-                        <h4 class="section-subheader">Month-over-Month</h4>
-                        <div id="habit-progress-month" class="progress-comparison"></div>
-                    </div>
+                    <div id="milestones-pagination" class="pagination"></div>
+                    <div id="milestones-pagination-info" class="pagination-info"></div>
                 </div>
             </div>
 
@@ -425,6 +359,21 @@
                     <div class="calendar-heatmap-display-area">
                         <div id="calendar-heatmap-display">Loading heatmap...</div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Narrative History Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Adventure History</h2>
+                    <span class="card-icon">📚</span>
+                </div>
+                <div class="card-content">
+                    <div class="scrollable-content">
+                        <div id="narrative-history-container"></div>
+                    </div>
+                    <div id="narratives-pagination" class="pagination"></div>
+                    <div id="narratives-pagination-info" class="pagination-info"></div>
                 </div>
             </div>
         </main>
