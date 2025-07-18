@@ -1139,7 +1139,7 @@ input:focus, select:focus, textarea:focus {
     }
 }
 
-/* Modal Improvements */
+/* Modal Improvements - Fixed Background */
 .modal {
     display: none;
     position: fixed;
@@ -1153,7 +1153,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .modal-content {
-    background-color: var(--card-bg);
+    background-color: #ffffff; /* Solid white background */
     margin: 5% auto;
     padding: 20px;
     border-radius: 12px;
@@ -1163,11 +1163,20 @@ input:focus, select:focus, textarea:focus {
     max-height: 90vh;
     overflow-y: auto;
     position: relative;
-    border: 1px solid var(--border-color);
+    border: 1px solid #e0e0e0;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .modal-content {
+        background-color: #2d2d2d; /* Dark background for dark theme */
+        border-color: #444;
+        color: #ffffff;
+    }
 }
 
 .modal-content h3 {
-    color: var(--primary-color);
+    color: #6a1b9a; /* Purple color */
     margin-top: 0;
     margin-bottom: 20px;
     font-size: 1.5em;
@@ -1184,7 +1193,13 @@ input:focus, select:focus, textarea:focus {
     gap: 12px;
     margin-top: 20px;
     padding-top: 20px;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid #e0e0e0;
+}
+
+@media (prefers-color-scheme: dark) {
+    .modal-footer {
+        border-top-color: #444;
+    }
 }
 
 .modal-footer button {
@@ -1198,6 +1213,50 @@ input:focus, select:focus, textarea:focus {
 
 .add-entity-form .form-group {
     margin-bottom: 16px;
+}
+
+.add-entity-form .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #333;
+}
+
+@media (prefers-color-scheme: dark) {
+    .add-entity-form .form-group label {
+        color: #ffffff;
+    }
+}
+
+.add-entity-form .form-group input,
+.add-entity-form .form-group select,
+.add-entity-form .form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: #ffffff;
+    color: #333;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+    .add-entity-form .form-group input,
+    .add-entity-form .form-group select,
+    .add-entity-form .form-group textarea {
+        background-color: #3d3d3d;
+        border-color: #555;
+        color: #ffffff;
+    }
+}
+
+.add-entity-form .form-group input:focus,
+.add-entity-form .form-group select:focus,
+.add-entity-form .form-group textarea:focus {
+    outline: none;
+    border-color: #6a1b9a;
+    box-shadow: 0 0 0 2px rgba(106, 27, 154, 0.1);
 }
 
 .add-entity-form .form-group-row {
@@ -1220,6 +1279,7 @@ input:focus, select:focus, textarea:focus {
     width: 100%;
     min-height: 80px;
     margin-bottom: 10px;
+    box-sizing: border-box;
 }
 
 .enhance-desc-btn {
@@ -1236,32 +1296,71 @@ input:focus, select:focus, textarea:focus {
 
 .radio-option {
     padding: 8px 16px;
-    border: 2px solid var(--border-color);
+    border: 2px solid #ddd;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
     flex: 1;
     text-align: center;
     font-size: 14px;
+    background-color: #ffffff;
+    color: #333;
+}
+
+@media (prefers-color-scheme: dark) {
+    .radio-option {
+        background-color: #3d3d3d;
+        border-color: #555;
+        color: #ffffff;
+    }
 }
 
 .radio-option:hover {
-    border-color: var(--primary-color);
+    border-color: #6a1b9a;
 }
 
 .radio-option.selected {
-    background-color: var(--primary-color);
+    background-color: #6a1b9a;
     color: white;
-    border-color: var(--primary-color);
+    border-color: #6a1b9a;
 }
 
 .radio-option.negative {
-    border-color: var(--danger-color);
+    border-color: #f44336;
 }
 
 .radio-option.negative.selected {
-    background-color: var(--danger-color);
-    border-color: var(--danger-color);
+    background-color: #f44336;
+    border-color: #f44336;
+}
+
+/* Range slider styling */
+input[type="range"] {
+    width: 100%;
+    margin: 10px 0;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: #ddd;
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #6a1b9a;
+    cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #6a1b9a;
+    cursor: pointer;
+    border: none;
 }
 
 /* Mobile responsive modals */
@@ -1289,4 +1388,65 @@ input:focus, select:focus, textarea:focus {
 /* Remove old form-container styles since we're using modals now */
 .form-container {
     display: none !important;
+}
+
+/* Ensure buttons have proper styling */
+.btn-primary {
+    background-color: #6a1b9a;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+    background-color: #5a1a7a;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
+.btn-warning {
+    background-color: #ffc107;
+    color: #212529;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.btn-warning:hover {
+    background-color: #e0a800;
 }
