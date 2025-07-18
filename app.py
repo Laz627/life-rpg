@@ -51,10 +51,8 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    narrative_progress = db.relationship('NarrativeProgress', backref='user', uselist=False, cascade='all, delete-orphan')
-
     
-    # Relationships (one-to-many)
+    # Relationships (one-to-many unless specified)
     attributes = db.relationship('Attribute', backref='user', lazy=True, cascade='all, delete-orphan')
     tasks = db.relationship('Task', backref='user', lazy=True, cascade='all, delete-orphan')
     quests = db.relationship('Quest', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -64,83 +62,74 @@ class User(UserMixin, db.Model):
     daily_stats = db.relationship('DailyStat', backref='user', lazy=True, cascade='all, delete-orphan')
     character_stats = db.relationship('CharacterStat', backref='user', lazy=True, cascade='all, delete-orphan')
 
-class NarrativeProgress(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    current_location = db.Column(db.String(100), default="The Crossroads Inn")
-    main_quest = db.Column(db.Text, default="Seeking your destiny as an adventurer")
-    companions = db.Column(db.Text, default="None yet")
-    recent_events = db.Column(db.Text, default="You've just begun your adventure")
-    story_day = db.Column(db.Integer, default=1)
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
-    
-    __table_args__ = (db.UniqueConstraint('user_id'),)
+    # NEW: Relationships for new features
+    credo = db.relationship('Credo', backref='user', uselist=False, cascade='all, delete-orphan')
+    notes = db.relationship('Note', backref='user', lazy=True, cascade='all, delete-orphan')
+    daily_checklist_items = db.relationship('DailyChecklistItem', backref='user', lazy=True, cascade='all, delete-orphan')
+    daily_checklist_logs = db.relationship('DailyChecklistLog', backref='user', lazy=True, cascade='all, delete-orphan')
 
 class Attribute(db.Model):
     attribute_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     name = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.Text)
     current_xp = db.Column(db.Integer, default=0)
-    
-    # Relationships
-    subskills = db.relationship('Subskill', backref='attribute', lazy=True, cascade='all, delete-orphan')
-    tasks = db.relationship('Task', backref='attribute', lazy=True)
-    
-    # Unique constraint per user
     __table_args__ = (db.UniqueConstraint('user_id', 'name'),)
-
-class Subskill(db.Model):
-    subskill_id = db.Column(db.Integer, primary_key=True)
-    attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'), nullable=False)
-    name = db.Column(db.String(50), nullable=False)
-    current_xp = db.Column(db.Integer, default=0)
-    
-    # Relationships
-    tasks = db.relationship('Task', backref='subskill', lazy=True)
 
 class Task(db.Model):
     task_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     date = db.Column(db.String(10), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    task_type = db.Column(db.String(20), nullable=False)
     attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'))
-    subskill_id = db.Column(db.Integer, db.ForeignKey('subskill.subskill_id'))
     xp_gained = db.Column(db.Integer, default=0)
-    stress_effect = db.Column(db.Integer, default=0)
     is_completed = db.Column(db.Boolean, default=False)
     is_skipped = db.Column(db.Boolean, default=False)
     is_negative_habit = db.Column(db.Boolean, default=False)
-    negative_habit_done = db.Column(db.Boolean, default=None)  # None=not answered, True=did it, False=avoided
-    # --- NEW FIELDS FOR NUMERIC TRACKING ---
-    numeric_value = db.Column(db.Float, nullable=True)
-    numeric_unit = db.Column(db.String(50), nullable=True)
-    logged_numeric_value = db.Column(db.Float, nullable=True)
-
-
+    
 class Quest(db.Model):
     quest_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    difficulty = db.Column(db.String(20))
-    xp_reward = db.Column(db.Integer)
-    attribute_focus = db.Column(db.String(50))
-    start_date = db.Column(db.String(10), nullable=False)
-    due_date = db.Column(db.String(10))
-    completed_date = db.Column(db.String(10))
     status = db.Column(db.String(20), default='Active')
-    # NEW: Relationship to Quest Steps
     steps = db.relationship('QuestStep', backref='quest', lazy='dynamic', cascade='all, delete-orphan')
 
-# NEW: QuestStep model
 class QuestStep(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     quest_id = db.Column(db.Integer, db.ForeignKey('quest.quest_id'), nullable=False)
     description = db.Column(db.Text, nullable=False)
     is_completed = db.Column(db.Boolean, default=False)
+
+# --- NEW MODELS ---
+
+class Credo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    content = db.Column(db.Text, default="Define your core principles, your 'why'. What guides your journey?")
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+class Note(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+class DailyChecklistItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    question = db.Column(db.String(255), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+
+class DailyChecklistLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('daily_checklist_item.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.String(10), nullable=False)
+    status = db.Column(db.String(20), nullable=False) # e.g., 'completed', 'missed'
+    item = db.relationship('DailyChecklistItem')
+    __table_args__ = (db.UniqueConstraint('item_id', 'date', 'user_id'),)
 
 class Milestone(db.Model):
     milestone_id = db.Column(db.Integer, primary_key=True)
@@ -1612,10 +1601,164 @@ def api_get_story_progress():
         'recent_events': progress.recent_events
     })
 
+@app.route('/api/credo', methods=['GET'])
+@login_required
+def get_credo():
+    credo = Credo.query.filter_by(user_id=current_user.id).first()
+    if not credo:
+        # Create a default credo for the user if it doesn't exist
+        credo = Credo(user_id=current_user.id)
+        db.session.add(credo)
+        db.session.commit()
+    return jsonify({'content': credo.content})
+
+@app.route('/api/credo', methods=['POST'])
+@login_required
+def update_credo():
+    data = request.json
+    credo = Credo.query.filter_by(user_id=current_user.id).first()
+    if not credo:
+        credo = Credo(user_id=current_user.id)
+        db.session.add(credo)
+    
+    credo.content = data.get('content', credo.content)
+    db.session.commit()
+    return jsonify({'success': True, 'content': credo.content})
+
+# --- NEW: NOTES API ---
+@app.route('/api/notes', methods=['GET'])
+@login_required
+def get_notes():
+    notes = Note.query.filter_by(user_id=current_user.id).order_by(Note.updated_at.desc()).all()
+    return jsonify([{
+        'id': note.id,
+        'title': note.title,
+        'content': note.content,
+        'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M')
+    } for note in notes])
+
+@app.route('/api/notes', methods=['POST'])
+@login_required
+def create_note():
+    data = request.json
+    if not data.get('title'):
+        return jsonify({'success': False, 'error': 'Title is required'}), 400
+    
+    note = Note(
+        user_id=current_user.id,
+        title=data['title'],
+        content=data.get('content', '')
+    )
+    db.session.add(note)
+    db.session.commit()
+    return jsonify({'success': True, 'id': note.id}), 201
+
+@app.route('/api/notes/<int:note_id>', methods=['PUT'])
+@login_required
+def update_note(note_id):
+    note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
+    data = request.json
+    note.title = data.get('title', note.title)
+    note.content = data.get('content', note.content)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/notes/<int:note_id>', methods=['DELETE'])
+@login_required
+def delete_note(note_id):
+    note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
+    db.session.delete(note)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# --- NEW: DAILY CHECKLIST API ---
+@app.route('/api/daily_checklist_items', methods=['GET'])
+@login_required
+def get_daily_checklist_items():
+    items = DailyChecklistItem.query.filter_by(user_id=current_user.id, is_active=True).order_by(DailyChecklistItem.id).all()
+    return jsonify([{'id': item.id, 'question': item.question} for item in items])
+
+@app.route('/api/daily_checklist_items', methods=['POST'])
+@login_required
+def add_daily_checklist_item():
+    data = request.json
+    question = data.get('question')
+    if not question:
+        return jsonify({'success': False, 'error': 'Question cannot be empty'}), 400
+
+    item = DailyChecklistItem(user_id=current_user.id, question=question)
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({'success': True, 'item': {'id': item.id, 'question': item.question}}), 201
+
+@app.route('/api/daily_checklist_items/<int:item_id>', methods=['DELETE'])
+@login_required
+def delete_daily_checklist_item(item_id):
+    item = DailyChecklistItem.query.filter_by(id=item_id, user_id=current_user.id).first_or_404()
+    # Also delete associated logs to keep DB clean
+    DailyChecklistLog.query.filter_by(item_id=item_id, user_id=current_user.id).delete()
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/daily_checklist_logs', methods=['GET'])
+@login_required
+def get_daily_checklist_logs():
+    date = request.args.get('date', datetime.date.today().isoformat())
+    
+    # Get all active items for the user
+    items = DailyChecklistItem.query.filter_by(user_id=current_user.id, is_active=True).all()
+    
+    # Get all logs for that specific day
+    logs = DailyChecklistLog.query.filter_by(user_id=current_user.id, date=date).all()
+    logs_by_item_id = {log.item_id: log.status for log in logs}
+
+    # Combine them
+    checklist_data = []
+    for item in items:
+        checklist_data.append({
+            'id': item.id,
+            'question': item.question,
+            'status': logs_by_item_id.get(item.id, None) # Status is null if not logged
+        })
+    
+    return jsonify(checklist_data)
+
+@app.route('/api/daily_checklist_logs', methods=['POST'])
+@login_required
+def log_daily_checklist_item():
+    data = request.json
+    item_id = data.get('item_id')
+    date = data.get('date')
+    status = data.get('status') # 'completed' or 'missed'
+
+    if not all([item_id, date, status]):
+        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+    # Ensure the item belongs to the user
+    item = DailyChecklistItem.query.filter_by(id=item_id, user_id=current_user.id).first()
+    if not item:
+        return jsonify({'success': False, 'error': 'Item not found'}), 404
+
+    log = DailyChecklistLog.query.filter_by(item_id=item_id, date=date, user_id=current_user.id).first()
+    
+    if log:
+        # If user clicks the same button again, un-log it. Otherwise, update it.
+        if log.status == status:
+            db.session.delete(log)
+        else:
+            log.status = status
+    else:
+        log = DailyChecklistLog(item_id=item_id, user_id=current_user.id, date=date, status=status)
+        db.session.add(log)
+        
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 # Initialize database tables
 with app.app_context():
     db.create_all()
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-    
