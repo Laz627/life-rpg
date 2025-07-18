@@ -834,7 +834,7 @@ function renderDailyChecklist() {
     container.innerHTML = '';
     
     if (dailyChecklistItems.length === 0) {
-        container.innerHTML = '<p>No checklist items yet. Add some daily check-in questions!</p>';
+        container.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 20px;">No checklist items yet. Add some daily check-in questions!</p>';
         return;
     }
     
