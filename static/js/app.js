@@ -9,10 +9,17 @@ let milestones = { data: [], page: 1, totalPages: 1, perPage: 5 };
 let narratives = { data: [], page: 1, totalPages: 1, perPage: 3 };
 let heatmapCurrentDate = new Date(); // For heatmap navigation
 
+// NEW: Global variables for new features
+let notes = [];
+let dailyChecklistItems = [];
+let dailyChecklistLogs = [];
+let currentChecklistDate = new Date().toISOString().split('T')[0];
+
 // --- DOM Ready Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
     checkAPIKey();
     document.getElementById('selected-date').value = currentSelectedDate;
+    document.getElementById('checklist-date').value = currentChecklistDate;
     initializePageData();
     setupEventListeners();
 });
@@ -84,6 +91,11 @@ async function initializePageData() {
     await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
     await fetchAndRenderHabitProgressor();
     
+    // NEW: Initialize new features
+    await fetchAndRenderCredo();
+    await fetchAndRenderNotes();
+    await fetchAndRenderDailyChecklist(currentChecklistDate);
+    
     updateHeatmapControlsLabel();
 }
 
@@ -112,6 +124,22 @@ function setupEventListeners() {
     document.getElementById('close-edit-quest-modal-btn').addEventListener('click', closeEditQuestModal);
     document.getElementById('save-quest-changes-btn').addEventListener('click', handleSaveQuestChanges);
     document.getElementById('add-quest-step-form').addEventListener('submit', handleAddQuestStep);
+
+    // NEW: Event listeners for new features
+    document.getElementById('save-credo-btn').addEventListener('click', handleSaveCredo);
+    document.getElementById('add-note-btn').addEventListener('click', () => {
+        resetNoteForm();
+        toggleForm('add-note-form-container');
+    });
+    document.getElementById('add-note-form').addEventListener('submit', handleAddNote);
+    document.getElementById('cancel-note-btn').addEventListener('click', () => {
+        resetNoteForm();
+        toggleForm('add-note-form-container');
+    });
+    document.getElementById('checklist-date').addEventListener('change', handleChecklistDateChange);
+    document.getElementById('add-checklist-item-btn').addEventListener('click', () => toggleForm('add-checklist-item-form-container'));
+    document.getElementById('add-checklist-item-form').addEventListener('submit', handleAddChecklistItem);
+    document.getElementById('cancel-checklist-item-btn').addEventListener('click', () => toggleForm('add-checklist-item-form-container'));
 }
 
 function toggleForm(formContainerId) {
@@ -554,7 +582,189 @@ async function deleteQuestStep(stepId, questId) {
     }
 }
 
+// --- NEW: Credo Functions ---
+async function fetchAndRenderCredo() {
+    const data = await apiCall('/api/credo');
+    if (data) {
+        document.getElementById('credo-content').value = data.content;
+    }
+}
 
+async function handleSaveCredo() {
+    const content = document.getElementById('credo-content').value;
+    const result = await apiCall('/api/credo', 'POST', { content });
+    if (result && result.success) {
+        alert('Mission statement saved successfully!');
+    }
+}
+
+// --- NEW: Notes Functions ---
+async function fetchAndRenderNotes() {
+    notes = await apiCall('/api/notes') || [];
+    renderNotes();
+}
+
+function renderNotes() {
+    const container = document.getElementById('notes-container');
+    container.innerHTML = '';
+    
+    if (notes.length === 0) {
+        container.innerHTML = '<p>No notes yet. Click "Add Note" to create your first note.</p>';
+        return;
+    }
+    
+    notes.forEach(note => {
+        const noteEl = document.createElement('div');
+        noteEl.className = 'note-item';
+        noteEl.innerHTML = `
+            <div class="note-header">
+                <h4 class="note-title">${note.title}</h4>
+                <div class="note-actions">
+                    <button onclick="editNote(${note.id})" class="btn-secondary btn-small">✏️ Edit</button>
+                    <button onclick="deleteNote(${note.id})" class="btn-danger btn-small">🗑️ Delete</button>
+                </div>
+            </div>
+            <div class="note-content-preview">${note.content.substring(0, 150)}${note.content.length > 150 ? '...' : ''}</div>
+            <div class="note-meta">Updated: ${note.updated_at}</div>
+        `;
+        container.appendChild(noteEl);
+    });
+}
+
+function resetNoteForm() {
+    document.getElementById('note-form-title').textContent = 'Add New Note';
+    document.getElementById('note-id').value = '';
+    document.getElementById('note-title').value = '';
+    document.getElementById('note-content').value = '';
+    document.getElementById('save-note-btn').textContent = 'Save Note';
+}
+
+async function handleAddNote(event) {
+    event.preventDefault();
+    const form = event.target;
+    const noteId = document.getElementById('note-id').value;
+    const isEditing = !!noteId;
+    
+    const payload = {
+        title: form.querySelector('#note-title').value,
+        content: form.querySelector('#note-content').value
+    };
+    
+    let result;
+    if (isEditing) {
+        result = await apiCall(`/api/notes/${noteId}`, 'PUT', payload);
+    } else {
+        result = await apiCall('/api/notes', 'POST', payload);
+    }
+    
+    if (result && result.success) {
+        resetNoteForm();
+        toggleForm('add-note-form-container');
+        await fetchAndRenderNotes();
+    }
+}
+
+async function editNote(noteId) {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    
+    document.getElementById('note-form-title').textContent = 'Edit Note';
+    document.getElementById('note-id').value = note.id;
+    document.getElementById('note-title').value = note.title;
+    document.getElementById('note-content').value = note.content;
+    document.getElementById('save-note-btn').textContent = 'Update Note';
+    
+    toggleForm('add-note-form-container');
+}
+
+async function deleteNote(noteId) {
+    if (!confirm('Are you sure you want to delete this note?')) return;
+    
+    const result = await apiCall(`/api/notes/${noteId}`, 'DELETE');
+    if (result && result.success) {
+        await fetchAndRenderNotes();
+    }
+}
+
+// --- NEW: Daily Checklist Functions ---
+async function fetchAndRenderDailyChecklist(date) {
+    dailyChecklistItems = await apiCall('/api/daily_checklist_items') || [];
+    dailyChecklistLogs = await apiCall(`/api/daily_checklist_logs?date=${date}`) || [];
+    renderDailyChecklist();
+}
+
+function renderDailyChecklist() {
+    const container = document.getElementById('daily-checklist-container');
+    container.innerHTML = '';
+    
+    if (dailyChecklistItems.length === 0) {
+        container.innerHTML = '<p>No checklist items yet. Add some daily check-in questions!</p>';
+        return;
+    }
+    
+    dailyChecklistLogs.forEach(item => {
+        const checklistEl = document.createElement('div');
+        checklistEl.className = `checklist-item ${item.status || ''}`;
+        checklistEl.innerHTML = `
+            <div class="checklist-question">${item.question}</div>
+            <div class="checklist-actions">
+                <button onclick="logChecklistItem(${item.id}, 'completed')" 
+                        class="btn-success btn-small ${item.status === 'completed' ? 'active' : ''}">
+                    ✅ Yes
+                </button>
+                <button onclick="logChecklistItem(${item.id}, 'missed')" 
+                        class="btn-danger btn-small ${item.status === 'missed' ? 'active' : ''}">
+                    ❌ No
+                </button>
+                <button onclick="deleteChecklistItem(${item.id})" class="btn-secondary btn-small">
+                    🗑️ Remove
+                </button>
+            </div>
+        `;
+        container.appendChild(checklistEl);
+    });
+}
+
+async function handleChecklistDateChange(event) {
+    currentChecklistDate = event.target.value;
+    await fetchAndRenderDailyChecklist(currentChecklistDate);
+}
+
+async function handleAddChecklistItem(event) {
+    event.preventDefault();
+    const form = event.target;
+    const question = form.querySelector('#checklist-question').value;
+    
+    const result = await apiCall('/api/daily_checklist_items', 'POST', { question });
+    if (result && result.success) {
+        form.reset();
+        toggleForm('add-checklist-item-form-container');
+        await fetchAndRenderDailyChecklist(currentChecklistDate);
+    }
+}
+
+async function logChecklistItem(itemId, status) {
+    const result = await apiCall('/api/daily_checklist_logs', 'POST', {
+        item_id: itemId,
+        date: currentChecklistDate,
+        status: status
+    });
+    
+    if (result && result.success) {
+        await fetchAndRenderDailyChecklist(currentChecklistDate);
+    }
+}
+
+async function deleteChecklistItem(itemId) {
+    if (!confirm('Are you sure you want to remove this checklist item?')) return;
+    
+    const result = await apiCall(`/api/daily_checklist_items/${itemId}`, 'DELETE');
+    if (result && result.success) {
+        await fetchAndRenderDailyChecklist(currentChecklistDate);
+    }
+}
+
+// --- API and Utility Functions ---
 async function apiCall(endpoint, method = 'GET', body = null) {
     const options = { method, headers: {} };
     if (body) {
