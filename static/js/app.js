@@ -1053,8 +1053,10 @@ function renderTasks() {
     const container = document.getElementById('task-list');
     container.innerHTML = '';
     if (!tasks || tasks.length === 0) {
-        container.innerHTML = '<li>No tasks for this day.</li>'; return;
+        container.innerHTML = '<li style="text-align: center; color: #6c757d; padding: 20px;">No tasks for this day.</li>';
+        return;
     }
+    
     tasks.forEach(task => {
         const taskEl = document.createElement('li');
         let taskClasses = 'task-item';
@@ -1065,25 +1067,25 @@ function renderTasks() {
         
         taskEl.className = taskClasses;
         
-        let attributeText = task.attribute ? `[${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}]` : '';
-        let xpText = task.is_negative_habit ? `(Avoid: ${task.xp || 25} XP)` : `(${task.xp} XP)`;
+        let attributeText = task.attribute ? `<span class="task-attribute">${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}</span>` : '';
+        let xpText = task.is_negative_habit ? `<span class="task-xp">Avoid: ${task.xp || 25} XP</span>` : `<span class="task-xp">${task.xp} XP</span>`;
         let numericText = '';
 
         if (task.numeric_unit) {
             if (task.completed && task.logged_numeric_value !== null) {
                 let goalText = task.numeric_value !== null ? `(Goal: ${task.numeric_value} ${task.numeric_unit})` : '';
-                numericText = `<span class="completion-status">Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText}</span>`;
+                numericText = `<span class="task-numeric">Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText}</span>`;
             } else if (task.numeric_value !== null) {
-                numericText = `(Goal: ${task.numeric_value} ${task.numeric_unit})`;
+                numericText = `<span class="task-numeric">Goal: ${task.numeric_value} ${task.numeric_unit}</span>`;
             } else {
-                 numericText = `(${task.numeric_unit})`;
+                numericText = `<span class="task-numeric">${task.numeric_unit}</span>`;
             }
         }
         
         let actionButtons = '';
         
         if (task.completed) {
-            actionButtons = `<span class="completion-status">✓ Logged!</span>`;
+            actionButtons = `<span class="completion-status">✓ Completed</span>`;
         } else if (task.skipped) {
             actionButtons = '<span class="completion-status">⏭ Skipped</span>';
         } else if (task.is_negative_habit) {
@@ -1091,7 +1093,7 @@ function renderTasks() {
                 actionButtons = `<button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log Habit</button>`;
             } else {
                 actionButtons = `
-                    <div class="task-actions negative-habit-actions">
+                    <div class="negative-habit-actions">
                         <button onclick="completeTask(${task.id}, true, '', 1)" class="btn-danger btn-small">Yes, I did it</button>
                         <button onclick="completeTask(${task.id}, true, '', 0)" class="btn-success btn-small">No, I avoided it</button>
                     </div>
@@ -1106,9 +1108,14 @@ function renderTasks() {
         }
         
         taskEl.innerHTML = `
-            <div>
-                ${task.description} ${attributeText} ${xpText} ${numericText}
-                <small>Stress Penalty: +${Math.abs(task.stress_effect)}</small>
+            <div class="task-content">
+                <div class="task-description">${task.description}</div>
+                <div class="task-meta">
+                    ${attributeText}
+                    ${xpText}
+                    ${numericText}
+                </div>
+                <div class="task-stress">Stress Effect: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}</div>
             </div>
             <div class="task-actions">
                 ${actionButtons}
