@@ -87,6 +87,22 @@
                 </div>
             </div>
 
+            <!-- NEW: Credo/Mission Statement Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Mission Statement</h2>
+                    <span class="card-icon">🎯</span>
+                </div>
+                <div class="card-content">
+                    <div class="form-group">
+                        <textarea id="credo-content" rows="4" placeholder="Define your core principles, your 'why'. What guides your journey?"></textarea>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    <button id="save-credo-btn" class="btn-primary">💾 Save Mission Statement</button>
+                </div>
+            </div>
+
             <!-- Tasks Card -->
             <div class="card">
                 <div class="card-header">
@@ -108,53 +124,24 @@
                 </div>
             </div>
 
-            <!-- Add Task Form (Hidden by default) -->
-            <div id="add-task-form-container" class="form-container" style="display: none;">
-                <form id="add-task-form" class="add-entity-form">
-                    <h4>Add New Task</h4>
-                    <div class="form-group">
-                        <label for="task-description">Task Description:</label>
-                        <input type="text" id="task-description" required>
+            <!-- NEW: Daily Checklist Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Daily Checklist</h2>
+                    <span class="card-icon">☑️</span>
+                </div>
+                <div class="card-content">
+                    <div class="date-picker-container">
+                        <label for="checklist-date">Date:</label>
+                        <input type="date" id="checklist-date">
                     </div>
-                    <div class="form-group">
-                        <label for="task-attribute">Attribute:</label>
-                        <select id="task-attribute">
-                            <option value="">No Attribute</option>
-                        </select>
+                    <div class="scrollable-content">
+                        <div id="daily-checklist-container"></div>
                     </div>
-                    <div class="form-group">
-                        <label>Task Type:</label>
-                        <div id="task-type-radio" class="radio-group">
-                            <div class="radio-option selected" data-value="positive">Positive Task</div>
-                            <div class="radio-option negative" data-value="negative">Negative Habit</div>
-                        </div>
-                    </div>
-                    <!-- NEW: Numeric input fields -->
-                    <div class="form-group-row" id="task-numeric-inputs">
-                        <div class="form-group">
-                            <label for="task-numeric-value">Target Value (Optional)</label>
-                            <input type="number" id="task-numeric-value" placeholder="e.g., 30">
-                        </div>
-                        <div class="form-group">
-                            <label for="task-numeric-unit">Unit (Optional)</label>
-                            <input type="text" id="task-numeric-unit" placeholder="e.g., pages, mg, reps">
-                        </div>
-                    </div>
-                    <div class="form-group" id="task-difficulty-group">
-                        <label for="task-difficulty">Difficulty:</label>
-                        <select id="task-difficulty">
-                            <option value="easy">Easy (10 XP)</option>
-                            <option value="medium" selected>Medium (25 XP)</option>
-                            <option value="hard">Hard (50 XP)</option>
-                            <option value="extra_hard">Extra Hard (100 XP)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="task-stress">Stress Effect: <span id="task-stress-value-display">-3</span></label>
-                        <input type="range" id="task-stress" min="-10" max="10" value="-3">
-                    </div>
-                    <button type="submit" class="btn-success">Add Task</button>
-                </form>
+                </div>
+                <div class="card-actions">
+                    <button id="add-checklist-item-btn" class="btn-primary">+ Add Checklist Item</button>
+                </div>
             </div>
 
             <!-- Attributes Card -->
@@ -167,6 +154,22 @@
                     <div class="scrollable-content">
                         <div id="attributes-container"></div>
                     </div>
+                </div>
+            </div>
+
+            <!-- NEW: Notes Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Notes</h2>
+                    <span class="card-icon">📝</span>
+                </div>
+                <div class="card-content">
+                    <div class="scrollable-content">
+                        <div id="notes-container"></div>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    <button id="add-note-btn" class="btn-primary">+ Add Note</button>
                 </div>
             </div>
 
@@ -208,142 +211,6 @@
                 </div>
             </div>
 
-            <!-- Add Recurring Task Form (Hidden by default) -->
-            <div id="add-recurring-task-form-container" class="form-container" style="display: none;">
-                <form id="add-recurring-task-form" class="add-entity-form">
-                    <h4>Add Recurring Habit</h4>
-                    <div class="form-group">
-                        <label for="recurring-task-description">Habit Description:</label>
-                        <input type="text" id="recurring-task-description" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="recurring-task-attribute">Attribute:</label>
-                        <select id="recurring-task-attribute">
-                            <option value="">No Attribute</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Habit Type:</label>
-                        <div id="recurring-task-type-radio" class="radio-group">
-                            <div class="radio-option selected" data-value="positive">Positive Habit</div>
-                            <div class="radio-option negative" data-value="negative">Negative Habit</div>
-                        </div>
-                    </div>
-
-                <!-- NEW: Credo/Mission Statement Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Mission Statement</h2>
-                        <span class="card-icon">🎯</span>
-                    </div>
-                    <div class="card-content">
-                        <div class="form-group">
-                            <textarea id="credo-content" rows="4" placeholder="Define your core principles, your 'why'. What guides your journey?"></textarea>
-                        </div>
-                    </div>
-                    <div class="card-actions">
-                        <button id="save-credo-btn" class="btn-primary">💾 Save Mission Statement</button>
-                    </div>
-                </div>
-                
-                <!-- NEW: Notes Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Notes</h2>
-                        <span class="card-icon">📝</span>
-                    </div>
-                    <div class="card-content">
-                        <div class="scrollable-content">
-                            <div id="notes-container"></div>
-                        </div>
-                    </div>
-                    <div class="card-actions">
-                        <button id="add-note-btn" class="btn-primary">+ Add Note</button>
-                    </div>
-                </div>
-                
-                <!-- NEW: Add Note Form (Hidden by default) -->
-                <div id="add-note-form-container" class="form-container" style="display: none;">
-                    <form id="add-note-form" class="add-entity-form">
-                        <h4 id="note-form-title">Add New Note</h4>
-                        <input type="hidden" id="note-id">
-                        <div class="form-group">
-                            <label for="note-title">Note Title:</label>
-                            <input type="text" id="note-title" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="note-content">Note Content:</label>
-                            <textarea id="note-content" rows="6" placeholder="Enter your note content here..."></textarea>
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn-success" id="save-note-btn">Save Note</button>
-                            <button type="button" class="btn-secondary" id="cancel-note-btn">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-                
-                <!-- NEW: Daily Checklist Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Daily Checklist</h2>
-                        <span class="card-icon">☑️</span>
-                    </div>
-                    <div class="card-content">
-                        <div class="date-picker-container">
-                            <label for="checklist-date">Date:</label>
-                            <input type="date" id="checklist-date">
-                        </div>
-                        <div class="scrollable-content">
-                            <div id="daily-checklist-container"></div>
-                        </div>
-                    </div>
-                    <div class="card-actions">
-                        <button id="add-checklist-item-btn" class="btn-primary">+ Add Checklist Item</button>
-                    </div>
-                </div>
-                
-                <!-- NEW: Add Checklist Item Form (Hidden by default) -->
-                <div id="add-checklist-item-form-container" class="form-container" style="display: none;">
-                    <form id="add-checklist-item-form" class="add-entity-form">
-                        <h4>Add Checklist Item</h4>
-                        <div class="form-group">
-                            <label for="checklist-question">Question/Item:</label>
-                            <input type="text" id="checklist-question" placeholder="e.g., Did I exercise today?" required>
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn-success">Add Item</button>
-                            <button type="button" class="btn-secondary" id="cancel-checklist-item-btn">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-                    <!-- NEW: Numeric input fields -->
-                    <div class="form-group-row" id="recurring-task-numeric-inputs">
-                        <div class="form-group">
-                            <label for="recurring-task-numeric-value">Target Value (Optional)</label>
-                            <input type="number" id="recurring-task-numeric-value" placeholder="e.g., 30">
-                        </div>
-                        <div class="form-group">
-                            <label for="recurring-task-numeric-unit">Unit (Optional)</label>
-                            <input type="text" id="recurring-task-numeric-unit" placeholder="e.g., pages, mg, reps">
-                        </div>
-                    </div>
-                    <div class="form-group" id="recurring-task-difficulty-group">
-                        <label for="recurring-task-difficulty">Difficulty:</label>
-                        <select id="recurring-task-difficulty">
-                            <option value="easy">Easy (10 XP)</option>
-                            <option value="medium" selected>Medium (25 XP)</option>
-                            <option value="hard">Hard (50 XP)</option>
-                            <option value="extra_hard">Extra Hard (100 XP)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="recurring-task-stress">Stress Effect: <span id="recurring-task-stress-value-display">-3</span></label>
-                        <input type="range" id="recurring-task-stress" min="-10" max="10" value="-3">
-                    </div>
-                    <button type="submit" class="btn-success">Add Habit</button>
-                </form>
-            </div>
-
             <!-- Quests Card -->
             <div class="card">
                 <div class="card-header">
@@ -359,44 +226,6 @@
                     <button id="add-quest-btn" class="btn-primary">+ Add Quest</button>
                     <button id="generate-quest-btn" class="btn-warning">🎲 Generate Quest (AI)</button>
                 </div>
-            </div>
-
-            <!-- Add Quest Form (Updated with enhancement button) -->
-            <div id="add-quest-form-container" class="form-container" style="display: none;">
-                <form id="add-quest-form" class="add-entity-form">
-                    <h4>Create New Quest</h4>
-                    <div class="form-group">
-                        <label for="quest-title">Quest Title:</label>
-                        <input type="text" id="quest-title" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="quest-description">Quest Description:</label>
-                        <div class="quest-desc-container">
-                            <textarea id="quest-description" placeholder="Enter your goal (e.g., 'Exercise for 30 minutes daily')"></textarea>
-                            <button type="button" id="enhance-quest-desc-btn" class="btn-warning enhance-desc-btn">✨ Enhance Description (AI)</button>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="quest-difficulty">Difficulty:</label>
-                        <select id="quest-difficulty">
-                            <option value="Easy">Easy (50 XP)</option>
-                            <option value="Medium" selected>Medium (100 XP)</option>
-                            <option value="Hard">Hard (175 XP)</option>
-                            <option value="Epic">Epic (250 XP)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="quest-attribute">Attribute Focus:</label>
-                        <select id="quest-attribute">
-                            <option value="">Any Attribute</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="quest-due-date">Due Date (Optional):</label>
-                        <input type="date" id="quest-due-date">
-                    </div>
-                    <button type="submit" class="btn-success">Create Quest</button>
-                </form>
             </div>
 
             <!-- Daily Narrative Card -->
@@ -464,6 +293,177 @@
                 </div>
             </div>
         </main>
+
+        <!-- Add Task Form (Hidden by default) -->
+        <div id="add-task-form-container" class="form-container" style="display: none;">
+            <form id="add-task-form" class="add-entity-form">
+                <h4>Add New Task</h4>
+                <div class="form-group">
+                    <label for="task-description">Task Description:</label>
+                    <input type="text" id="task-description" required>
+                </div>
+                <div class="form-group">
+                    <label for="task-attribute">Attribute:</label>
+                    <select id="task-attribute">
+                        <option value="">No Attribute</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Task Type:</label>
+                    <div id="task-type-radio" class="radio-group">
+                        <div class="radio-option selected" data-value="positive">Positive Task</div>
+                        <div class="radio-option negative" data-value="negative">Negative Habit</div>
+                    </div>
+                </div>
+                <!-- NEW: Numeric input fields -->
+                <div class="form-group-row" id="task-numeric-inputs">
+                    <div class="form-group">
+                        <label for="task-numeric-value">Target Value (Optional)</label>
+                        <input type="number" id="task-numeric-value" placeholder="e.g., 30">
+                    </div>
+                    <div class="form-group">
+                        <label for="task-numeric-unit">Unit (Optional)</label>
+                        <input type="text" id="task-numeric-unit" placeholder="e.g., pages, mg, reps">
+                    </div>
+                </div>
+                <div class="form-group" id="task-difficulty-group">
+                    <label for="task-difficulty">Difficulty:</label>
+                    <select id="task-difficulty">
+                        <option value="easy">Easy (10 XP)</option>
+                        <option value="medium" selected>Medium (25 XP)</option>
+                        <option value="hard">Hard (50 XP)</option>
+                        <option value="extra_hard">Extra Hard (100 XP)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="task-stress">Stress Effect: <span id="task-stress-value-display">-3</span></label>
+                    <input type="range" id="task-stress" min="-10" max="10" value="-3">
+                </div>
+                <button type="submit" class="btn-success">Add Task</button>
+            </form>
+        </div>
+
+        <!-- Add Recurring Task Form (Hidden by default) -->
+        <div id="add-recurring-task-form-container" class="form-container" style="display: none;">
+            <form id="add-recurring-task-form" class="add-entity-form">
+                <h4>Add Recurring Habit</h4>
+                <div class="form-group">
+                    <label for="recurring-task-description">Habit Description:</label>
+                    <input type="text" id="recurring-task-description" required>
+                </div>
+                <div class="form-group">
+                    <label for="recurring-task-attribute">Attribute:</label>
+                    <select id="recurring-task-attribute">
+                        <option value="">No Attribute</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Habit Type:</label>
+                    <div id="recurring-task-type-radio" class="radio-group">
+                        <div class="radio-option selected" data-value="positive">Positive Habit</div>
+                        <div class="radio-option negative" data-value="negative">Negative Habit</div>
+                    </div>
+                </div>
+                <!-- NEW: Numeric input fields -->
+                <div class="form-group-row" id="recurring-task-numeric-inputs">
+                    <div class="form-group">
+                        <label for="recurring-task-numeric-value">Target Value (Optional)</label>
+                        <input type="number" id="recurring-task-numeric-value" placeholder="e.g., 30">
+                    </div>
+                    <div class="form-group">
+                        <label for="recurring-task-numeric-unit">Unit (Optional)</label>
+                        <input type="text" id="recurring-task-numeric-unit" placeholder="e.g., pages, mg, reps">
+                    </div>
+                </div>
+                <div class="form-group" id="recurring-task-difficulty-group">
+                    <label for="recurring-task-difficulty">Difficulty:</label>
+                    <select id="recurring-task-difficulty">
+                        <option value="easy">Easy (10 XP)</option>
+                        <option value="medium" selected>Medium (25 XP)</option>
+                        <option value="hard">Hard (50 XP)</option>
+                        <option value="extra_hard">Extra Hard (100 XP)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="recurring-task-stress">Stress Effect: <span id="recurring-task-stress-value-display">-3</span></label>
+                    <input type="range" id="recurring-task-stress" min="-10" max="10" value="-3">
+                </div>
+                <button type="submit" class="btn-success">Add Habit</button>
+            </form>
+        </div>
+
+        <!-- Add Quest Form (Updated with enhancement button) -->
+        <div id="add-quest-form-container" class="form-container" style="display: none;">
+            <form id="add-quest-form" class="add-entity-form">
+                <h4>Create New Quest</h4>
+                <div class="form-group">
+                    <label for="quest-title">Quest Title:</label>
+                    <input type="text" id="quest-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="quest-description">Quest Description:</label>
+                    <div class="quest-desc-container">
+                        <textarea id="quest-description" placeholder="Enter your goal (e.g., 'Exercise for 30 minutes daily')"></textarea>
+                        <button type="button" id="enhance-quest-desc-btn" class="btn-warning enhance-desc-btn">✨ Enhance Description (AI)</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="quest-difficulty">Difficulty:</label>
+                    <select id="quest-difficulty">
+                        <option value="Easy">Easy (50 XP)</option>
+                        <option value="Medium" selected>Medium (100 XP)</option>
+                        <option value="Hard">Hard (175 XP)</option>
+                        <option value="Epic">Epic (250 XP)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="quest-attribute">Attribute Focus:</label>
+                    <select id="quest-attribute">
+                        <option value="">Any Attribute</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="quest-due-date">Due Date (Optional):</label>
+                    <input type="date" id="quest-due-date">
+                </div>
+                <button type="submit" class="btn-success">Create Quest</button>
+            </form>
+        </div>
+
+        <!-- NEW: Add Note Form (Hidden by default) -->
+        <div id="add-note-form-container" class="form-container" style="display: none;">
+            <form id="add-note-form" class="add-entity-form">
+                <h4 id="note-form-title">Add New Note</h4>
+                <input type="hidden" id="note-id">
+                <div class="form-group">
+                    <label for="note-title">Note Title:</label>
+                    <input type="text" id="note-title" required>
+                </div>
+                <div class="form-group">
+                    <label for="note-content">Note Content:</label>
+                    <textarea id="note-content" rows="6" placeholder="Enter your note content here..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-success" id="save-note-btn">Save Note</button>
+                    <button type="button" class="btn-secondary" id="cancel-note-btn">Cancel</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- NEW: Add Checklist Item Form (Hidden by default) -->
+        <div id="add-checklist-item-form-container" class="form-container" style="display: none;">
+            <form id="add-checklist-item-form" class="add-entity-form">
+                <h4>Add Checklist Item</h4>
+                <div class="form-group">
+                    <label for="checklist-question">Question/Item:</label>
+                    <input type="text" id="checklist-question" placeholder="e.g., Did I exercise today?" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-success">Add Item</button>
+                    <button type="button" class="btn-secondary" id="cancel-checklist-item-btn">Cancel</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script src="/static/js/app.js"></script>
