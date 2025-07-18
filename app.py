@@ -52,7 +52,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     
-    # Relationships (one-to-many unless specified)
+    # Relationships
     attributes = db.relationship('Attribute', backref='user', lazy=True, cascade='all, delete-orphan')
     tasks = db.relationship('Task', backref='user', lazy=True, cascade='all, delete-orphan')
     quests = db.relationship('Quest', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -61,6 +61,7 @@ class User(UserMixin, db.Model):
     recurring_tasks = db.relationship('RecurringTask', backref='user', lazy=True, cascade='all, delete-orphan')
     daily_stats = db.relationship('DailyStat', backref='user', lazy=True, cascade='all, delete-orphan')
     character_stats = db.relationship('CharacterStat', backref='user', lazy=True, cascade='all, delete-orphan')
+    narrative_progress = db.relationship('NarrativeProgress', backref='user', uselist=False, cascade='all, delete-orphan')
 
     # NEW: Relationships for new features
     credo = db.relationship('Credo', backref='user', uselist=False, cascade='all, delete-orphan')
@@ -72,25 +73,49 @@ class Attribute(db.Model):
     attribute_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     name = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text)
     current_xp = db.Column(db.Integer, default=0)
+    subskills = db.relationship('Subskill', backref='attribute', lazy=True, cascade='all, delete-orphan')
     __table_args__ = (db.UniqueConstraint('user_id', 'name'),)
+
+# CORRECTED: Re-added the missing Subskill model
+class Subskill(db.Model):
+    subskill_id = db.Column(db.Integer, primary_key=True)
+    attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    current_xp = db.Column(db.Integer, default=0)
 
 class Task(db.Model):
     task_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     date = db.Column(db.String(10), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    task_type = db.Column(db.String(50), default='general')
     attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'))
+    subskill_id = db.Column(db.Integer, db.ForeignKey('subskill.subskill_id'))
     xp_gained = db.Column(db.Integer, default=0)
+    stress_effect = db.Column(db.Integer, default=0)
     is_completed = db.Column(db.Boolean, default=False)
     is_skipped = db.Column(db.Boolean, default=False)
     is_negative_habit = db.Column(db.Boolean, default=False)
-    
+    negative_habit_done = db.Column(db.Boolean, nullable=True)
+    numeric_value = db.Column(db.Float, nullable=True)
+    numeric_unit = db.Column(db.String(50), nullable=True)
+    logged_numeric_value = db.Column(db.Float, nullable=True)
+    attribute = db.relationship('Attribute')
+    subskill = db.relationship('Subskill')
+
 class Quest(db.Model):
     quest_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
+    difficulty = db.Column(db.String(50))
+    xp_reward = db.Column(db.Integer)
+    attribute_focus = db.Column(db.String(50))
+    start_date = db.Column(db.String(10))
+    due_date = db.Column(db.String(10), nullable=True)
+    completed_date = db.Column(db.String(10), nullable=True)
     status = db.Column(db.String(20), default='Active')
     steps = db.relationship('QuestStep', backref='quest', lazy='dynamic', cascade='all, delete-orphan')
 
@@ -101,7 +126,6 @@ class QuestStep(db.Model):
     is_completed = db.Column(db.Boolean, default=False)
 
 # --- NEW MODELS ---
-
 class Credo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
@@ -139,8 +163,6 @@ class Milestone(db.Model):
     description = db.Column(db.Text, nullable=False)
     attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'))
     achievement_type = db.Column(db.String(50), nullable=False)
-    
-    # Relationship to access attribute object
     attribute = db.relationship('Attribute', backref='milestones')
 
 class DailyNarrative(db.Model):
@@ -148,8 +170,18 @@ class DailyNarrative(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     date = db.Column(db.String(10), nullable=False)
     narrative = db.Column(db.Text, nullable=False)
-    
     __table_args__ = (db.UniqueConstraint('user_id', 'date'),)
+
+# CORRECTED: Re-added the missing NarrativeProgress model
+class NarrativeProgress(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    story_day = db.Column(db.Integer, default=1)
+    current_location = db.Column(db.String(200), default="The Crossroads Inn")
+    main_quest = db.Column(db.Text, default="Seeking your destiny as an adventurer.")
+    companions = db.Column(db.Text, default="None yet.")
+    recent_events = db.Column(db.Text, default="You've just arrived, ready for what lies ahead.")
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 class RecurringTask(db.Model):
     recurring_task_id = db.Column(db.Integer, primary_key=True)
@@ -163,11 +195,8 @@ class RecurringTask(db.Model):
     start_date = db.Column(db.String(10), nullable=False)
     last_added_date = db.Column(db.String(10))
     is_active = db.Column(db.Boolean, default=True)
-    # --- NEW FIELDS FOR NUMERIC TRACKING ---
     numeric_value = db.Column(db.Float, nullable=True)
     numeric_unit = db.Column(db.String(50), nullable=True)
-    
-    # Relationships to access attribute and subskill objects
     attribute = db.relationship('Attribute', backref='recurring_tasks')
     subskill = db.relationship('Subskill', backref='recurring_tasks')
 
@@ -178,7 +207,6 @@ class DailyStat(db.Model):
     stress_level = db.Column(db.Integer, default=0)
     tasks_completed = db.Column(db.Integer, default=0)
     total_xp_gained = db.Column(db.Integer, default=0)
-    
     __table_args__ = (db.UniqueConstraint('user_id', 'date'),)
 
 class CharacterStat(db.Model):
@@ -186,7 +214,6 @@ class CharacterStat(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     stat_name = db.Column(db.String(50), nullable=False)
     value = db.Column(db.Integer, default=0)
-    
     __table_args__ = (db.UniqueConstraint('user_id', 'stat_name'),)
 
 # --- Login Manager ---
@@ -204,7 +231,6 @@ def calculate_level_from_exp(exp):
     return int(1 + (exp / 100) ** (1/2.2))
 
 def generate_ai_response(prompt, system_message, api_key):
-    """Generate AI response using user's API key"""
     try:
         openai.api_key = api_key
         response = openai.ChatCompletion.create(
@@ -221,8 +247,6 @@ def generate_ai_response(prompt, system_message, api_key):
         return f"AI Error: {str(e)}"
 
 def initialize_user_data(user):
-    """Initialize default attributes and stats for a new user"""
-    # Create default attributes
     for attr_name, sub_list in ATTRIBUTES.items():
         attribute = Attribute(
             user_id=user.id,
@@ -231,9 +255,8 @@ def initialize_user_data(user):
             current_xp=0
         )
         db.session.add(attribute)
-        db.session.flush()  # Get the ID
+        db.session.flush()
         
-        # Create subskills
         for sub_name in sub_list:
             subskill = Subskill(
                 attribute_id=attribute.attribute_id,
@@ -242,18 +265,10 @@ def initialize_user_data(user):
             )
             db.session.add(subskill)
 
-    # Create narrative progress
     narrative_progress = NarrativeProgress(user_id=user.id)
     db.session.add(narrative_progress)
     
-    db.session.commit()
-    
-    # Create default character stats
-    stress_stat = CharacterStat(
-        user_id=user.id,
-        stat_name='Stress',
-        value=0
-    )
+    stress_stat = CharacterStat(user_id=user.id, stat_name='Stress', value=0)
     db.session.add(stress_stat)
     
     db.session.commit()
@@ -267,38 +282,24 @@ def register():
         email = data.get('email')
         password = data.get('password')
         
-        # Validation
         if not username or not email or not password:
-            if request.is_json:
-                return jsonify({'success': False, 'error': 'All fields are required'}), 400
+            if request.is_json: return jsonify({'success': False, 'error': 'All fields are required'}), 400
             flash('All fields are required')
             return render_template('register.html')
         
-        # Check if user exists
         if User.query.filter((User.username == username) | (User.email == email)).first():
-            if request.is_json:
-                return jsonify({'success': False, 'error': 'Username or email already exists'}), 400
+            if request.is_json: return jsonify({'success': False, 'error': 'Username or email already exists'}), 400
             flash('Username or email already exists')
             return render_template('register.html')
         
-        # Create new user
-        user = User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password)
-        )
+        user = User(username=username, email=email, password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.commit()
         
-        # Initialize user data
         initialize_user_data(user)
-        
-        # Log them in
         login_user(user)
         
-        if request.is_json:
-            return jsonify({'success': True, 'redirect': '/'})
-        
+        if request.is_json: return jsonify({'success': True, 'redirect': url_for('index')})
         return redirect(url_for('index'))
     
     return render_template('register.html')
@@ -310,18 +311,14 @@ def login():
         username = data.get('username')
         password = data.get('password')
         
-        user = User.query.filter(
-            (User.username == username) | (User.email == username)
-        ).first()
+        user = User.query.filter((User.username == username) | (User.email == username)).first()
         
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            if request.is_json:
-                return jsonify({'success': True, 'redirect': '/'})
+            if request.is_json: return jsonify({'success': True, 'redirect': url_for('index')})
             return redirect(url_for('index'))
         
-        if request.is_json:
-            return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
+        if request.is_json: return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
         flash('Invalid username/email or password')
     
     return render_template('login.html')
@@ -341,27 +338,17 @@ def index():
 @app.route('/api/test_api_key', methods=['POST'])
 @login_required
 def test_api_key():
-    """Test if the provided API key is valid"""
     data = request.json
     api_key = data.get('api_key')
-    
-    if not api_key:
-        return jsonify({'success': False, 'error': 'No API key provided'})
-    
+    if not api_key: return jsonify({'success': False, 'error': 'No API key provided'})
     try:
         openai.api_key = api_key
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": "test"}],
-            max_tokens=5
-        )
+        openai.ChatCompletion.create(model="gpt-4o-mini", messages=[{"role": "user", "content": "test"}], max_tokens=5)
         return jsonify({'success': True})
     except Exception as e:
-        error_message = str(e)
-        print(f"API key test failed: {error_message}")
-        return jsonify({'success': False, 'error': error_message})
+        print(f"API key test failed: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
 
-# --- API Routes ---
 @app.route('/api/attributes')
 @login_required
 def api_get_attributes():
@@ -421,7 +408,6 @@ def api_get_tasks():
     ).filter(RecurringTask.start_date <= date).all()
     
     for rt in recurring_tasks:
-        # Check if already added for this date
         existing_task = Task.query.filter_by(
             user_id=current_user.id,
             date=date,
@@ -446,7 +432,6 @@ def api_get_tasks():
     
     db.session.commit()
     
-    # Get tasks for the date, sorted alphabetically
     tasks = Task.query.filter_by(user_id=current_user.id, date=date).order_by(
         Task.is_completed, Task.is_skipped, Task.description.asc()
     ).all()
