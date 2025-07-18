@@ -1067,64 +1067,80 @@ function renderTasks() {
         
         taskEl.className = taskClasses;
         
-        // Build metadata as plain text
-        let metaText = '';
+        // Build task details tags
+        let detailsHtml = '';
         if (task.attribute) {
-            metaText += `[${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}] `;
+            detailsHtml += `<span class="task-attribute-tag">${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}</span>`;
         }
         
         if (task.is_negative_habit) {
-            metaText += `(Avoid: ${task.xp || 25} XP) `;
+            detailsHtml += `<span class="task-xp-tag">Avoid: ${task.xp || 25} XP</span>`;
         } else {
-            metaText += `(${task.xp} XP) `;
+            detailsHtml += `<span class="task-xp-tag">${task.xp} XP</span>`;
         }
 
         if (task.numeric_unit) {
             if (task.completed && task.logged_numeric_value !== null) {
-                let goalText = task.numeric_value !== null ? `(Goal: ${task.numeric_value} ${task.numeric_unit})` : '';
-                metaText += `Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText} `;
+                let goalText = task.numeric_value !== null ? ` (Goal: ${task.numeric_value})` : '';
+                detailsHtml += `<span class="task-numeric-tag">Logged: ${task.logged_numeric_value} ${task.numeric_unit}${goalText}</span>`;
             } else if (task.numeric_value !== null) {
-                metaText += `Goal: ${task.numeric_value} ${task.numeric_unit} `;
+                detailsHtml += `<span class="task-numeric-tag">Goal: ${task.numeric_value} ${task.numeric_unit}</span>`;
             } else {
-                metaText += `${task.numeric_unit} `;
+                detailsHtml += `<span class="task-numeric-tag">${task.numeric_unit}</span>`;
             }
         }
         
-        metaText += `• Stress Effect: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}`;
+        detailsHtml += `<span class="task-stress-tag">Stress: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}</span>`;
         
-        let actionButtons = '';
+        // Build action buttons and status
+        let actionButtonsHtml = '';
+        let statusTextHtml = '';
         
         if (task.completed) {
-            actionButtons = `<span class="completion-status">✓ Completed</span>`;
+            statusTextHtml = `<span class="task-status-text completed">✓ Completed</span>`;
+            actionButtonsHtml = `<button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑 Delete</button>`;
         } else if (task.skipped) {
-            actionButtons = '<span class="completion-status">⏭ Skipped</span>';
+            statusTextHtml = `<span class="task-status-text skipped">⏭ Skipped</span>`;
+            actionButtonsHtml = `<button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑 Delete</button>`;
         } else if (task.is_negative_habit) {
             if (task.numeric_unit) {
-                actionButtons = `<button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log Habit</button>`;
+                actionButtonsHtml = `
+                    <button onclick="completeTask(${task.id}, true, '${task.numeric_unit}')" class="btn-warning btn-small">📝 Log Habit</button>
+                    <button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑 Delete</button>
+                `;
             } else {
-                actionButtons = `
+                actionButtonsHtml = `
                     <div class="negative-habit-actions">
                         <button onclick="completeTask(${task.id}, true, '', 1)" class="btn-danger btn-small">Yes, I did it</button>
                         <button onclick="completeTask(${task.id}, true, '', 0)" class="btn-success btn-small">No, I avoided it</button>
                     </div>
+                    <button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑 Delete</button>
                 `;
             }
         } else {
             const isNumeric = !!task.numeric_unit;
-            actionButtons = `
+            actionButtonsHtml = `
                 <button onclick="completeTask(${task.id}, ${isNumeric}, '${task.numeric_unit}')" class="btn-success btn-small">✓ Complete</button>
                 <button onclick="skipTask(${task.id})" class="btn-warning btn-small">⏭ Skip</button>
+                <button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑 Delete</button>
             `;
         }
         
         taskEl.innerHTML = `
-            <div class="task-content">
-                <div class="task-description">${task.description}</div>
-                <div class="task-meta">${metaText}</div>
+            <div class="task-title-line">
+                <span class="task-title">${task.description}</span>
+                <span class="task-type-badge task-type-${task.is_negative_habit ? 'negative' : 'positive'}">
+                    ${task.is_negative_habit ? 'Avoid' : 'Do'}
+                </span>
             </div>
-            <div class="task-actions">
-                ${actionButtons}
-                <button onclick="deleteTask(${task.id})" class="btn-danger btn-small">🗑 Delete</button>
+            <div class="task-details">
+                ${detailsHtml}
+            </div>
+            <div class="task-actions-bar">
+                ${statusTextHtml}
+                <div class="task-actions-buttons">
+                    ${actionButtonsHtml}
+                </div>
             </div>
         `;
         container.appendChild(taskEl);
