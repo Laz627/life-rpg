@@ -194,85 +194,300 @@ header h1 {
     font-size: 0.95em;
 }
 
+/* Task List Improvements - Desktop Focused */
 .task-list {
-    list-style-type: none;
+    list-style: none;
     padding: 0;
+    margin: 0;
 }
 
 .task-item {
-    padding: 12px;
-    margin-bottom: 10px;
-    border-radius: var(--border-radius);
-    background-color: #fdfdfd;
-    border: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    transition: background-color 0.2s ease;
-}
-.task-item:hover {
-    background-color: #f7f7f7;
+    align-items: flex-start;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    background-color: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.task-item.negative-habit {
-    border-left: 4px solid var(--negative-color);
-    background-color: #ffebee; /* Light red */
+.task-item:hover {
+    border-color: #6a1b9a;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
+
 .task-item.task-completed {
-    text-decoration: line-through;
-    opacity: 0.7;
-    background-color: #e8f5e9; /* Light green */
-}
-.task-item.task-completed .task-actions button:first-child { /* Hide complete button */
-    display: none;
+    background-color: #f8fff8;
+    border-color: #28a745;
+    opacity: 0.8;
 }
 
 .task-item.task-skipped {
-    background-color: #fff3e0; /* Light orange */
+    background-color: #fff8f0;
+    border-color: #ffc107;
     opacity: 0.8;
-    border-left: 4px solid var(--neutral-color);
 }
 
-.task-item.task-skipped .task-description {
-    text-decoration: line-through;
-    color: var(--text-light-color);
+.task-item.negative-habit {
+    background-color: #fff5f5;
+    border-color: #f44336;
 }
 
-.task-item div:first-child { /* Task description area */
-    flex-grow: 1;
-    margin-right: 10px;
-}
-.task-item small {
-    display: block;
-    color: var(--text-light-color);
-    font-size: 0.85em;
-    margin-top: 3px;
+.task-item.negative-habit.task-completed {
+    background-color: #f0f8f0;
+    border-color: #28a745;
 }
 
+/* Task Content (left side) */
+.task-content {
+    flex: 1;
+    padding-right: 20px;
+    min-width: 0; /* Prevents flex item from overflowing */
+}
+
+.task-description {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.task-attribute {
+    background-color: #6a1b9a;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.task-xp {
+    background-color: #28a745;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.task-numeric {
+    background-color: #17a2b8;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.task-stress {
+    color: #6c757d;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.completion-status {
+    background-color: #e9ecef;
+    color: #495057;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Task Actions (right side) */
 .task-actions {
     display: flex;
-    gap: 8px;
-    align-items: center; /* Vertically align buttons/text */
-}
-.task-actions .completion-status {
-    color: var(--positive-color);
-    font-weight: 600;
-    font-size: 0.9em;
-}
-
-/* Negative habit specific styling */
-.task-actions.negative-habit-actions {
     flex-direction: column;
-    align-items: stretch;
+    gap: 8px;
+    align-items: flex-end;
+    flex-shrink: 0;
     min-width: 140px;
-    gap: 5px;
 }
 
-.task-actions.negative-habit-actions button {
-    margin: 2px 0;
-    text-align: center;
-    font-size: 0.8em;
-    padding: 4px 8px;
+.task-actions button {
+    white-space: nowrap;
+    min-width: 120px;
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.task-actions .btn-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.task-actions .btn-success:hover {
+    background-color: #218838;
+    transform: translateY(-1px);
+}
+
+.task-actions .btn-warning {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.task-actions .btn-warning:hover {
+    background-color: #e0a800;
+    transform: translateY(-1px);
+}
+
+.task-actions .btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.task-actions .btn-danger:hover {
+    background-color: #c82333;
+    transform: translateY(-1px);
+}
+
+.task-actions .btn-small {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-width: 100px;
+}
+
+/* Negative habit specific actions */
+.negative-habit-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.negative-habit-actions button {
+    min-width: 140px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+/* Desktop specific improvements */
+@media (min-width: 769px) {
+    .task-item {
+        padding: 20px 25px;
+        margin-bottom: 15px;
+    }
+    
+    .task-content {
+        padding-right: 25px;
+    }
+    
+    .task-description {
+        font-size: 17px;
+        margin-bottom: 10px;
+    }
+    
+    .task-meta {
+        gap: 15px;
+        margin-bottom: 8px;
+    }
+    
+    .task-actions {
+        gap: 10px;
+        min-width: 160px;
+    }
+    
+    .task-actions button {
+        min-width: 140px;
+        padding: 10px 15px;
+        font-size: 14px;
+    }
+    
+    .negative-habit-actions {
+        gap: 8px;
+    }
+    
+    .negative-habit-actions button {
+        min-width: 160px;
+        padding: 10px 15px;
+    }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .task-item {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .task-content {
+        padding-right: 0;
+    }
+    
+    .task-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-start;
+        min-width: auto;
+    }
+    
+    .task-actions button {
+        min-width: auto;
+        flex: 1;
+        min-width: 80px;
+    }
+    
+    .negative-habit-actions {
+        flex-direction: row;
+        width: 100%;
+    }
+    
+    .negative-habit-actions button {
+        flex: 1;
+        min-width: auto;
+    }
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .task-item {
+        background-color: #2d2d2d;
+        border-color: #444;
+    }
+    
+    .task-description {
+        color: #ffffff;
+    }
+    
+    .task-stress {
+        color: #adb5bd;
+    }
+    
+    .completion-status {
+        background-color: #495057;
+        color: #ffffff;
+    }
+    
+    .task-item.task-completed {
+        background-color: #1a2e1a;
+    }
+    
+    .task-item.task-skipped {
+        background-color: #2e2a1a;
+    }
+    
+    .task-item.negative-habit {
+        background-color: #2e1a1a;
+    }
 }
 
 .card-actions {
