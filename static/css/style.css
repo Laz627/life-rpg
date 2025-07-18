@@ -959,104 +959,190 @@ input:focus, select:focus, textarea:focus {
     color: var(--text-light-color);
 }
 
-/* NEW: Daily Checklist Styles */
+/* Daily Checklist Improvements */
 .checklist-item {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
+    background-color: #ffffff;
+    border: 1px solid #ddd;
     border-radius: 8px;
     padding: 16px;
     margin-bottom: 12px;
     transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.checklist-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .checklist-item.completed {
-    background-color: rgba(76, 175, 80, 0.1);
-    border-color: var(--success-color);
+    background-color: rgba(76, 175, 80, 0.05);
+    border-color: #28a745;
 }
 
 .checklist-item.missed {
-    background-color: rgba(244, 67, 54, 0.1);
-    border-color: var(--danger-color);
+    background-color: rgba(244, 67, 54, 0.05);
+    border-color: #f44336;
 }
 
 .checklist-question {
     font-size: 16px;
     font-weight: 500;
-    color: var(--text-color);
+    color: #333;
     margin-bottom: 12px;
+    line-height: 1.4;
 }
 
 .checklist-actions {
     display: flex;
     gap: 8px;
     align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.checklist-actions .btn-small {
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    white-space: nowrap;
+    flex: 0 0 auto; /* Prevent buttons from stretching */
+    min-width: auto; /* Remove minimum width constraints */
 }
 
 .checklist-actions .btn-small.active {
-    opacity: 1;
     transform: scale(1.05);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .checklist-actions .btn-small:not(.active) {
-    opacity: 0.7;
+    opacity: 0.8;
 }
 
-/* Form improvements */
-.form-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 16px;
+.checklist-actions .btn-success {
+    background-color: #28a745;
+    color: white;
 }
 
-.form-actions button {
-    flex: 1;
+.checklist-actions .btn-success:hover {
+    background-color: #218838;
 }
 
-/* Date picker styling for checklist */
+.checklist-actions .btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.checklist-actions .btn-danger:hover {
+    background-color: #c82333;
+}
+
+.checklist-actions .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.checklist-actions .btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+/* Desktop specific improvements */
+@media (min-width: 769px) {
+    .checklist-actions {
+        justify-content: flex-end;
+    }
+    
+    .checklist-actions .btn-small {
+        min-width: 80px;
+    }
+}
+
+/* Mobile responsive - keep buttons reasonable size */
+@media (max-width: 768px) {
+    .checklist-item {
+        padding: 14px;
+    }
+    
+    .checklist-question {
+        font-size: 15px;
+        margin-bottom: 10px;
+    }
+    
+    .checklist-actions {
+        justify-content: center;
+        gap: 6px;
+    }
+    
+    .checklist-actions .btn-small {
+        padding: 6px 12px;
+        font-size: 12px;
+        min-width: 70px;
+        flex: 0 0 auto; /* Ensure buttons don't stretch */
+    }
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .checklist-item {
+        background-color: #2d2d2d;
+        border-color: #444;
+    }
+    
+    .checklist-question {
+        color: #ffffff;
+    }
+    
+    .checklist-item.completed {
+        background-color: rgba(76, 175, 80, 0.1);
+    }
+    
+    .checklist-item.missed {
+        background-color: rgba(244, 67, 54, 0.1);
+    }
+}
+
+/* Date picker container improvements */
 .date-picker-container {
     margin-bottom: 16px;
     padding: 12px;
     background-color: rgba(106, 27, 154, 0.05);
     border-radius: 8px;
-    border: 1px solid var(--border-color);
+    border: 1px solid #e0e0e0;
 }
 
 .date-picker-container label {
     display: inline-block;
     margin-right: 8px;
     font-weight: 500;
-    color: var(--text-color);
+    color: #333;
 }
 
 .date-picker-container input[type="date"] {
     padding: 8px 12px;
-    border: 1px solid var(--border-color);
+    border: 1px solid #ddd;
     border-radius: 4px;
-    background-color: var(--card-bg);
-    color: var(--text-color);
+    background-color: #ffffff;
+    color: #333;
     font-size: 14px;
 }
 
-/* Responsive improvements */
-@media (max-width: 768px) {
-    .note-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
+@media (prefers-color-scheme: dark) {
+    .date-picker-container {
+        background-color: rgba(106, 27, 154, 0.1);
+        border-color: #444;
     }
     
-    .note-actions {
-        align-self: stretch;
+    .date-picker-container label {
+        color: #ffffff;
     }
     
-    .checklist-actions {
-        flex-direction: column;
-        gap: 8px;
-    }
-    
-    .checklist-actions .btn-small {
-        width: 100%;
+    .date-picker-container input[type="date"] {
+        background-color: #3d3d3d;
+        border-color: #555;
+        color: #ffffff;
     }
 }
 
