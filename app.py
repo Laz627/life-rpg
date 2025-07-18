@@ -480,7 +480,6 @@ def api_add_task():
     # Calculate XP based on difficulty
     xp = 0 if data.get('is_negative_habit') else TASK_DIFFICULTIES.get(data.get('difficulty', 'medium'), 25)
     
-    # --- NEW: Automatically assign a unit for non-numeric negative habits ---
     is_negative = data.get('is_negative_habit', False)
     numeric_unit = data.get('numeric_unit') if data.get('numeric_unit') else None
     if is_negative and not numeric_unit:
@@ -531,7 +530,6 @@ def api_complete_task():
         goal = task.numeric_value if task.numeric_value is not None else 0
         if task.logged_numeric_value is not None and task.logged_numeric_value <= goal:
             is_success = True
-        # Set the flag for stats tracking
         task.negative_habit_done = not is_success
     else:
         if task.numeric_unit is None:
@@ -1081,7 +1079,7 @@ def api_get_attribute_history():
     
     return jsonify(result)
 
-# --- NEW PROGRESS TRACKING ENDPOINTS ---
+# --- PROGRESS TRACKING ENDPOINTS ---
 @app.route('/api/get_numeric_habits')
 @login_required
 def get_numeric_habits():
@@ -1194,7 +1192,6 @@ def api_get_quests():
     quests_data = []
     for quest in quests:
         steps_data = []
-        # UPDATED: Eagerly load steps for each quest
         for step in quest.steps.order_by(QuestStep.id):
             steps_data.append({
                 'id': step.id,
@@ -1213,7 +1210,7 @@ def api_get_quests():
             'due_date': quest.due_date,
             'completed_date': quest.completed_date,
             'status': quest.status,
-            'steps': steps_data  # NEW: Include steps in response
+            'steps': steps_data
         })
     
     return jsonify(quests_data)
@@ -1239,7 +1236,6 @@ def api_add_quest():
     
     return jsonify({'success': True, 'quest_id': quest.quest_id})
 
-# NEW: Endpoint to edit a quest's details
 @app.route('/api/quests/<int:quest_id>', methods=['PUT'])
 @login_required
 def update_quest(quest_id):
@@ -1263,7 +1259,6 @@ def api_complete_quest():
     if not quest or quest.status == 'Completed':
         return jsonify({'success': False, 'error': 'Quest not found or already completed'})
     
-    # NEW: Check if all steps are completed
     incomplete_steps = quest.steps.filter_by(is_completed=False).count()
     if incomplete_steps > 0:
         return jsonify({'success': False, 'error': f'Cannot complete quest. {incomplete_steps} steps remaining.'}), 400
@@ -1293,7 +1288,6 @@ def api_complete_quest():
     
     return jsonify({'success': True})
 
-# NEW: Endpoint to add a quest step
 @app.route('/api/quests/<int:quest_id>/steps', methods=['POST'])
 @login_required
 def add_quest_step(quest_id):
@@ -1317,12 +1311,10 @@ def add_quest_step(quest_id):
         }
     }), 201
 
-# NEW: Endpoint to toggle a quest step's completion
 @app.route('/api/quest_steps/<int:step_id>/toggle', methods=['PUT'])
 @login_required
 def toggle_quest_step(step_id):
     step = QuestStep.query.get_or_404(step_id)
-    # Ensure the step belongs to a quest owned by the current user
     if step.quest.user_id != current_user.id:
         return jsonify({'success': False, 'error': 'Forbidden'}), 403
 
@@ -1330,7 +1322,6 @@ def toggle_quest_step(step_id):
     db.session.commit()
     return jsonify({'success': True, 'is_completed': step.is_completed})
 
-# NEW: Endpoint to delete a quest step
 @app.route('/api/quest_steps/<int:step_id>', methods=['DELETE'])
 @login_required
 def delete_quest_step(step_id):
@@ -1551,194 +1542,112 @@ def api_reset_day():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/add-negative-habit-column')
-def add_negative_habit_column():
-    """Add the new negative_habit_done column to existing tasks table"""
-    try:
-        with db.engine.connect() as connection:
-            connection.execute(text('ALTER TABLE task ADD COLUMN negative_habit_done BOOLEAN DEFAULT NULL'))
-            connection.commit()
-        return "Successfully added negative_habit_done column to task table!"
-    except Exception as e:
-        if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
-            return "Column already exists - no action needed!"
-        return f"Error adding column: {str(e)}"
-
 @app.route('/api/story_progress')
 @login_required
 def api_get_story_progress():
-    """Get current story progression details"""
     progress = NarrativeProgress.query.filter_by(user_id=current_user.id).first()
     
     if not progress:
         return jsonify({
-            'story_day': 1,
-            'location': 'The Crossroads Inn',
-            'main_quest': 'Seeking your destiny as an adventurer',
-            'companions': 'None yet'
+            'story_day': 1, 'location': 'The Crossroads Inn',
+            'main_quest': 'Seeking your destiny as an adventurer', 'companions': 'None yet'
         })
     
     return jsonify({
-        'story_day': progress.story_day,
-        'location': progress.current_location,
-        'main_quest': progress.main_quest,
-        'companions': progress.companions,
+        'story_day': progress.story_day, 'location': progress.current_location,
+        'main_quest': progress.main_quest, 'companions': progress.companions,
         'recent_events': progress.recent_events
     })
 
-@app.route('/api/credo', methods=['GET'])
+@app.route('/api/credo', methods=['GET', 'POST'])
 @login_required
-def get_credo():
+def handle_credo():
     credo = Credo.query.filter_by(user_id=current_user.id).first()
     if not credo:
-        # Create a default credo for the user if it doesn't exist
         credo = Credo(user_id=current_user.id)
         db.session.add(credo)
+    
+    if request.method == 'POST':
+        credo.content = request.json.get('content', credo.content)
         db.session.commit()
+        return jsonify({'success': True, 'content': credo.content})
+    
     return jsonify({'content': credo.content})
 
-@app.route('/api/credo', methods=['POST'])
+@app.route('/api/notes', methods=['GET', 'POST'])
 @login_required
-def update_credo():
-    data = request.json
-    credo = Credo.query.filter_by(user_id=current_user.id).first()
-    if not credo:
-        credo = Credo(user_id=current_user.id)
-        db.session.add(credo)
-    
-    credo.content = data.get('content', credo.content)
-    db.session.commit()
-    return jsonify({'success': True, 'content': credo.content})
-
-# --- NEW: NOTES API ---
-@app.route('/api/notes', methods=['GET'])
-@login_required
-def get_notes():
+def handle_notes():
+    if request.method == 'POST':
+        data = request.json
+        if not data.get('title'): return jsonify({'success': False, 'error': 'Title is required'}), 400
+        note = Note(user_id=current_user.id, title=data['title'], content=data.get('content', ''))
+        db.session.add(note)
+        db.session.commit()
+        return jsonify({'success': True, 'id': note.id}), 201
+        
     notes = Note.query.filter_by(user_id=current_user.id).order_by(Note.updated_at.desc()).all()
-    return jsonify([{
-        'id': note.id,
-        'title': note.title,
-        'content': note.content,
-        'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M')
-    } for note in notes])
+    return jsonify([{'id': n.id, 'title': n.title, 'content': n.content, 'updated_at': n.updated_at.strftime('%Y-%m-%d %H:%M')} for n in notes])
 
-@app.route('/api/notes', methods=['POST'])
+@app.route('/api/notes/<int:note_id>', methods=['PUT', 'DELETE'])
 @login_required
-def create_note():
-    data = request.json
-    if not data.get('title'):
-        return jsonify({'success': False, 'error': 'Title is required'}), 400
-    
-    note = Note(
-        user_id=current_user.id,
-        title=data['title'],
-        content=data.get('content', '')
-    )
-    db.session.add(note)
-    db.session.commit()
-    return jsonify({'success': True, 'id': note.id}), 201
-
-@app.route('/api/notes/<int:note_id>', methods=['PUT'])
-@login_required
-def update_note(note_id):
+def handle_note_item(note_id):
     note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
+    if request.method == 'DELETE':
+        db.session.delete(note)
+        db.session.commit()
+        return jsonify({'success': True})
+    
     data = request.json
     note.title = data.get('title', note.title)
     note.content = data.get('content', note.content)
     db.session.commit()
     return jsonify({'success': True})
 
-@app.route('/api/notes/<int:note_id>', methods=['DELETE'])
+@app.route('/api/daily_checklist_items', methods=['GET', 'POST'])
 @login_required
-def delete_note(note_id):
-    note = Note.query.filter_by(id=note_id, user_id=current_user.id).first_or_404()
-    db.session.delete(note)
-    db.session.commit()
-    return jsonify({'success': True})
-
-# --- NEW: DAILY CHECKLIST API ---
-@app.route('/api/daily_checklist_items', methods=['GET'])
-@login_required
-def get_daily_checklist_items():
+def get_or_add_daily_checklist_items():
+    if request.method == 'POST':
+        question = request.json.get('question')
+        if not question: return jsonify({'success': False, 'error': 'Question cannot be empty'}), 400
+        item = DailyChecklistItem(user_id=current_user.id, question=question)
+        db.session.add(item)
+        db.session.commit()
+        return jsonify({'success': True, 'item': {'id': item.id, 'question': item.question}}), 201
     items = DailyChecklistItem.query.filter_by(user_id=current_user.id, is_active=True).order_by(DailyChecklistItem.id).all()
     return jsonify([{'id': item.id, 'question': item.question} for item in items])
-
-@app.route('/api/daily_checklist_items', methods=['POST'])
-@login_required
-def add_daily_checklist_item():
-    data = request.json
-    question = data.get('question')
-    if not question:
-        return jsonify({'success': False, 'error': 'Question cannot be empty'}), 400
-
-    item = DailyChecklistItem(user_id=current_user.id, question=question)
-    db.session.add(item)
-    db.session.commit()
-    return jsonify({'success': True, 'item': {'id': item.id, 'question': item.question}}), 201
 
 @app.route('/api/daily_checklist_items/<int:item_id>', methods=['DELETE'])
 @login_required
 def delete_daily_checklist_item(item_id):
     item = DailyChecklistItem.query.filter_by(id=item_id, user_id=current_user.id).first_or_404()
-    # Also delete associated logs to keep DB clean
     DailyChecklistLog.query.filter_by(item_id=item_id, user_id=current_user.id).delete()
     db.session.delete(item)
     db.session.commit()
     return jsonify({'success': True})
 
-@app.route('/api/daily_checklist_logs', methods=['GET'])
+@app.route('/api/daily_checklist_logs', methods=['GET', 'POST'])
 @login_required
-def get_daily_checklist_logs():
-    date = request.args.get('date', datetime.date.today().isoformat())
-    
-    # Get all active items for the user
+def handle_daily_checklist_logs():
+    date = request.args.get('date', datetime.date.today().isoformat()) if request.method == 'GET' else request.json.get('date')
+    if request.method == 'POST':
+        data = request.json
+        item_id, status = data.get('item_id'), data.get('status')
+        if not all([item_id, date, status]): return jsonify({'success': False, 'error': 'Missing fields'}), 400
+        if not DailyChecklistItem.query.filter_by(id=item_id, user_id=current_user.id).first(): return jsonify({'success': False, 'error': 'Item not found'}), 404
+        log = DailyChecklistLog.query.filter_by(item_id=item_id, date=date, user_id=current_user.id).first()
+        if log:
+            if log.status == status: db.session.delete(log)
+            else: log.status = status
+        else:
+            log = DailyChecklistLog(item_id=item_id, user_id=current_user.id, date=date, status=status)
+            db.session.add(log)
+        db.session.commit()
+        return jsonify({'success': True})
+
     items = DailyChecklistItem.query.filter_by(user_id=current_user.id, is_active=True).all()
-    
-    # Get all logs for that specific day
     logs = DailyChecklistLog.query.filter_by(user_id=current_user.id, date=date).all()
     logs_by_item_id = {log.item_id: log.status for log in logs}
-
-    # Combine them
-    checklist_data = []
-    for item in items:
-        checklist_data.append({
-            'id': item.id,
-            'question': item.question,
-            'status': logs_by_item_id.get(item.id, None) # Status is null if not logged
-        })
-    
-    return jsonify(checklist_data)
-
-@app.route('/api/daily_checklist_logs', methods=['POST'])
-@login_required
-def log_daily_checklist_item():
-    data = request.json
-    item_id = data.get('item_id')
-    date = data.get('date')
-    status = data.get('status') # 'completed' or 'missed'
-
-    if not all([item_id, date, status]):
-        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
-
-    # Ensure the item belongs to the user
-    item = DailyChecklistItem.query.filter_by(id=item_id, user_id=current_user.id).first()
-    if not item:
-        return jsonify({'success': False, 'error': 'Item not found'}), 404
-
-    log = DailyChecklistLog.query.filter_by(item_id=item_id, date=date, user_id=current_user.id).first()
-    
-    if log:
-        # If user clicks the same button again, un-log it. Otherwise, update it.
-        if log.status == status:
-            db.session.delete(log)
-        else:
-            log.status = status
-    else:
-        log = DailyChecklistLog(item_id=item_id, user_id=current_user.id, date=date, status=status)
-        db.session.add(log)
-        
-    db.session.commit()
-    return jsonify({'success': True})
+    return jsonify([{'id': item.id, 'question': item.question, 'status': logs_by_item_id.get(item.id, None)} for item in items])
 
 
 # Initialize database tables
