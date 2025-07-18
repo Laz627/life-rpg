@@ -61,6 +61,7 @@ class User(UserMixin, db.Model):
     recurring_tasks = db.relationship('RecurringTask', backref='user', lazy=True, cascade='all, delete-orphan')
     daily_stats = db.relationship('DailyStat', backref='user', lazy=True, cascade='all, delete-orphan')
     character_stats = db.relationship('CharacterStat', backref='user', lazy=True, cascade='all, delete-orphan')
+    narrative_progress = db.relationship('NarrativeProgress', backref='user', uselist=False, cascade='all, delete-orphan')
 
     # NEW: Relationships for new features
     credo = db.relationship('Credo', backref='user', uselist=False, cascade='all, delete-orphan')
@@ -72,8 +73,22 @@ class Attribute(db.Model):
     attribute_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     name = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text)  # ADDED: Missing description field
     current_xp = db.Column(db.Integer, default=0)
+    
+    # Relationship to subskills
+    subskills = db.relationship('Subskill', backref='attribute', lazy=True, cascade='all, delete-orphan')
+    
     __table_args__ = (db.UniqueConstraint('user_id', 'name'),)
+
+# NEW: Missing Subskill model
+class Subskill(db.Model):
+    subskill_id = db.Column(db.Integer, primary_key=True)
+    attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    current_xp = db.Column(db.Integer, default=0)
+    
+    __table_args__ = (db.UniqueConstraint('attribute_id', 'name'),)
 
 class Task(db.Model):
     task_id = db.Column(db.Integer, primary_key=True)
@@ -81,17 +96,39 @@ class Task(db.Model):
     date = db.Column(db.String(10), nullable=False)
     description = db.Column(db.Text, nullable=False)
     attribute_id = db.Column(db.Integer, db.ForeignKey('attribute.attribute_id'))
+    subskill_id = db.Column(db.Integer, db.ForeignKey('subskill.subskill_id'))  # ADDED: Missing subskill_id
     xp_gained = db.Column(db.Integer, default=0)
     is_completed = db.Column(db.Boolean, default=False)
     is_skipped = db.Column(db.Boolean, default=False)
     is_negative_habit = db.Column(db.Boolean, default=False)
     
+    # ADDED: Missing fields
+    task_type = db.Column(db.String(20), default='general')
+    stress_effect = db.Column(db.Integer, default=0)
+    numeric_value = db.Column(db.Float, nullable=True)
+    numeric_unit = db.Column(db.String(50), nullable=True)
+    logged_numeric_value = db.Column(db.Float, nullable=True)
+    negative_habit_done = db.Column(db.Boolean, default=None)  # ADDED: For negative habit tracking
+    
+    # Relationships
+    attribute = db.relationship('Attribute', backref='tasks')
+    subskill = db.relationship('Subskill', backref='tasks')
+        
 class Quest(db.Model):
     quest_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     status = db.Column(db.String(20), default='Active')
+    
+    # ADDED: Missing fields
+    difficulty = db.Column(db.String(20), default='Medium')
+    xp_reward = db.Column(db.Integer, default=100)
+    attribute_focus = db.Column(db.String(50))
+    start_date = db.Column(db.String(10))
+    due_date = db.Column(db.String(10))
+    completed_date = db.Column(db.String(10))
+    
     steps = db.relationship('QuestStep', backref='quest', lazy='dynamic', cascade='all, delete-orphan')
 
 class QuestStep(db.Model):
@@ -100,8 +137,18 @@ class QuestStep(db.Model):
     description = db.Column(db.Text, nullable=False)
     is_completed = db.Column(db.Boolean, default=False)
 
-# --- NEW MODELS ---
+# NEW: Missing NarrativeProgress model
+class NarrativeProgress(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    story_day = db.Column(db.Integer, default=1)
+    current_location = db.Column(db.String(200), default='The Crossroads Inn')
+    main_quest = db.Column(db.Text, default='Seeking your destiny as an adventurer')
+    companions = db.Column(db.Text, default='None yet')
+    recent_events = db.Column(db.Text, default='Beginning of your journey')
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
+# --- NEW MODELS ---
 class Credo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
@@ -127,7 +174,7 @@ class DailyChecklistLog(db.Model):
     item_id = db.Column(db.Integer, db.ForeignKey('daily_checklist_item.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     date = db.Column(db.String(10), nullable=False)
-    status = db.Column(db.String(20), nullable=False) # e.g., 'completed', 'missed'
+    status = db.Column(db.String(20), nullable=False)  # e.g., 'completed', 'missed'
     item = db.relationship('DailyChecklistItem')
     __table_args__ = (db.UniqueConstraint('item_id', 'date', 'user_id'),)
 
@@ -245,6 +292,10 @@ def initialize_user_data(user):
     # Create narrative progress
     narrative_progress = NarrativeProgress(user_id=user.id)
     db.session.add(narrative_progress)
+    
+    # Create default credo
+    credo = Credo(user_id=user.id)
+    db.session.add(credo)
     
     db.session.commit()
     
