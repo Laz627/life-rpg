@@ -1067,7 +1067,7 @@ function renderTasks() {
         
         taskEl.className = taskClasses;
         
-        // Build task details tags
+        // Build task details tags - only essential info
         let detailsHtml = '';
         if (task.attribute) {
             detailsHtml += `<span class="task-attribute-tag">${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}</span>`;
@@ -1079,18 +1079,10 @@ function renderTasks() {
             detailsHtml += `<span class="task-xp-tag">${task.xp} XP</span>`;
         }
 
-        if (task.numeric_unit) {
-            if (task.completed && task.logged_numeric_value !== null) {
-                let goalText = task.numeric_value !== null ? ` (Goal: ${task.numeric_value})` : '';
-                detailsHtml += `<span class="task-numeric-tag">Logged: ${task.logged_numeric_value} ${task.numeric_unit}${goalText}</span>`;
-            } else if (task.numeric_value !== null) {
-                detailsHtml += `<span class="task-numeric-tag">Goal: ${task.numeric_value} ${task.numeric_unit}</span>`;
-            } else {
-                detailsHtml += `<span class="task-numeric-tag">${task.numeric_unit}</span>`;
-            }
+        // Only show logged numeric values, not goals or stress
+        if (task.numeric_unit && task.completed && task.logged_numeric_value !== null) {
+            detailsHtml += `<span class="task-numeric-tag">Logged: ${task.logged_numeric_value} ${task.numeric_unit}</span>`;
         }
-        
-        detailsHtml += `<span class="task-stress-tag">Stress: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}</span>`;
         
         // Build action buttons and status
         let actionButtonsHtml = '';
@@ -1129,9 +1121,6 @@ function renderTasks() {
         taskEl.innerHTML = `
             <div class="task-title-line">
                 <span class="task-title">${task.description}</span>
-                <span class="task-type-badge task-type-${task.is_negative_habit ? 'negative' : 'positive'}">
-                    ${task.is_negative_habit ? 'Avoid' : 'Do'}
-                </span>
             </div>
             <div class="task-details">
                 ${detailsHtml}
