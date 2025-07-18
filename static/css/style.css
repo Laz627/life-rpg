@@ -971,128 +971,170 @@ input:focus, select:focus, textarea:focus {
     max-width: 200px; /* Set a max-width if needed */
 }
 
-/* --- New Styles for Credo, Notes, Daily Checklist --- */
-
-/* Credo Card */
-.credo-textarea {
+/* NEW: Credo/Mission Statement Styles */
+#credo-content {
     width: 100%;
-    background-color: var(--input-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    color: var(--text-color);
-    padding: 10px;
+    min-height: 100px;
+    padding: 12px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
     font-family: inherit;
-    font-size: 0.95em;
+    font-size: 14px;
+    line-height: 1.4;
     resize: vertical;
+    background-color: var(--card-bg);
+    color: var(--text-color);
 }
 
-/* Notes Card */
-#notes-list-container .note-item {
-    padding: 12px;
-    border-bottom: 1px solid var(--border-color);
+#credo-content:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(106, 27, 154, 0.1);
 }
-#notes-list-container .note-item:last-child {
-    border-bottom: none;
+
+/* NEW: Notes Styles */
+.note-item {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
 }
-.note-item-header {
+
+.note-item:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.note-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
 }
-.note-item-header strong {
-    font-size: 1.1em;
+
+.note-title {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: 16px;
+    font-weight: 600;
 }
-.note-item p {
-    margin: 0 0 8px 0;
-    color: var(--text-light-color);
-}
-.note-item small {
-    font-size: 0.8em;
-    color: var(--text-muted-color);
-}
+
 .note-actions {
     display: flex;
-    gap: 5px;
+    gap: 8px;
 }
 
-/* Daily Review / Checklist Card */
-.daily-checklist-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 5px;
-    border-bottom: 1px solid var(--border-color);
+.note-content-preview {
+    color: var(--text-color);
+    line-height: 1.4;
+    margin-bottom: 8px;
 }
-#daily-checklist-container .daily-checklist-item:last-of-type {
-    border-bottom: none;
+
+.note-meta {
+    font-size: 12px;
+    color: var(--text-light-color);
 }
+
+/* NEW: Daily Checklist Styles */
+.checklist-item {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+}
+
+.checklist-item.completed {
+    background-color: rgba(76, 175, 80, 0.1);
+    border-color: var(--success-color);
+}
+
+.checklist-item.missed {
+    background-color: rgba(244, 67, 54, 0.1);
+    border-color: var(--danger-color);
+}
+
+.checklist-question {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 12px;
+}
+
 .checklist-actions {
     display: flex;
-    gap: 5px;
-}
-.checklist-actions .btn-small {
-    padding: 5px 8px;
-    font-size: 1em;
-}
-.checklist-actions .btn-small.active {
-    filter: brightness(1.2);
-    transform: scale(1.1);
+    gap: 8px;
+    align-items: center;
 }
 
-/* Add Step Form (reusable for quest steps and checklist items) */
-.add-step-form {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border-color);
+.checklist-actions .btn-small.active {
+    opacity: 1;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
-.add-step-form input[type="text"] {
-    flex-grow: 1;
-    background-color: var(--input-bg-color);
+
+.checklist-actions .btn-small:not(.active) {
+    opacity: 0.7;
+}
+
+/* Form improvements */
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.form-actions button {
+    flex: 1;
+}
+
+/* Date picker styling for checklist */
+.date-picker-container {
+    margin-bottom: 16px;
+    padding: 12px;
+    background-color: rgba(106, 27, 154, 0.05);
+    border-radius: 8px;
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: 8px;
+}
+
+.date-picker-container label {
+    display: inline-block;
+    margin-right: 8px;
+    font-weight: 500;
     color: var(--text-color);
 }
 
-/* Modal for Note Editor */
-#noteEditorModal .modal-content {
-    width: 90%;
-    max-width: 600px;
+.date-picker-container input[type="date"] {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    font-size: 14px;
 }
 
-/* Quest Checklist in Modal */
-.quest-checklist {
-    list-style: none;
-    padding: 0;
-    margin: 10px 0;
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .note-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .note-actions {
+        align-self: stretch;
+    }
+    
+    .checklist-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .checklist-actions .btn-small {
+        width: 100%;
+    }
 }
-.quest-step {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px;
-    border-radius: var(--border-radius);
-}
-.quest-step input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-}
-.quest-step-label {
-    flex-grow: 1;
-}
-.quest-step.completed .quest-step-label {
-    text-decoration: line-through;
-    color: var(--text-muted-color);
-}
-.quest-step-delete-btn {
-    cursor: pointer;
-    color: var(--text-muted-color);
-    padding: 5px;
-    border-radius: 50%;
-}
-.quest-step-delete-btn:hover {
-    color: var(--negative-color);
-    background-color: rgba(255, 0, 0, 0.1);
