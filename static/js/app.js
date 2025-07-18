@@ -1067,20 +1067,30 @@ function renderTasks() {
         
         taskEl.className = taskClasses;
         
-        let attributeText = task.attribute ? `<span class="task-attribute">${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}</span>` : '';
-        let xpText = task.is_negative_habit ? `<span class="task-xp">Avoid: ${task.xp || 25} XP</span>` : `<span class="task-xp">${task.xp} XP</span>`;
-        let numericText = '';
+        // Build metadata as plain text
+        let metaText = '';
+        if (task.attribute) {
+            metaText += `[${task.attribute}${task.subskill ? ` → ${task.subskill}`: ''}] `;
+        }
+        
+        if (task.is_negative_habit) {
+            metaText += `(Avoid: ${task.xp || 25} XP) `;
+        } else {
+            metaText += `(${task.xp} XP) `;
+        }
 
         if (task.numeric_unit) {
             if (task.completed && task.logged_numeric_value !== null) {
                 let goalText = task.numeric_value !== null ? `(Goal: ${task.numeric_value} ${task.numeric_unit})` : '';
-                numericText = `<span class="task-numeric">Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText}</span>`;
+                metaText += `Logged: ${task.logged_numeric_value} ${task.numeric_unit} ${goalText} `;
             } else if (task.numeric_value !== null) {
-                numericText = `<span class="task-numeric">Goal: ${task.numeric_value} ${task.numeric_unit}</span>`;
+                metaText += `Goal: ${task.numeric_value} ${task.numeric_unit} `;
             } else {
-                numericText = `<span class="task-numeric">${task.numeric_unit}</span>`;
+                metaText += `${task.numeric_unit} `;
             }
         }
+        
+        metaText += `• Stress Effect: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}`;
         
         let actionButtons = '';
         
@@ -1110,12 +1120,7 @@ function renderTasks() {
         taskEl.innerHTML = `
             <div class="task-content">
                 <div class="task-description">${task.description}</div>
-                <div class="task-meta">
-                    ${attributeText}
-                    ${xpText}
-                    ${numericText}
-                </div>
-                <div class="task-stress">Stress Effect: ${task.stress_effect > 0 ? '+' : ''}${task.stress_effect}</div>
+                <div class="task-meta">${metaText}</div>
             </div>
             <div class="task-actions">
                 ${actionButtons}
