@@ -229,6 +229,93 @@
                             <div class="radio-option negative" data-value="negative">Negative Habit</div>
                         </div>
                     </div>
+
+                <!-- NEW: Credo/Mission Statement Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Mission Statement</h2>
+                        <span class="card-icon">🎯</span>
+                    </div>
+                    <div class="card-content">
+                        <div class="form-group">
+                            <textarea id="credo-content" rows="4" placeholder="Define your core principles, your 'why'. What guides your journey?"></textarea>
+                        </div>
+                    </div>
+                    <div class="card-actions">
+                        <button id="save-credo-btn" class="btn-primary">💾 Save Mission Statement</button>
+                    </div>
+                </div>
+                
+                <!-- NEW: Notes Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Notes</h2>
+                        <span class="card-icon">📝</span>
+                    </div>
+                    <div class="card-content">
+                        <div class="scrollable-content">
+                            <div id="notes-container"></div>
+                        </div>
+                    </div>
+                    <div class="card-actions">
+                        <button id="add-note-btn" class="btn-primary">+ Add Note</button>
+                    </div>
+                </div>
+                
+                <!-- NEW: Add Note Form (Hidden by default) -->
+                <div id="add-note-form-container" class="form-container" style="display: none;">
+                    <form id="add-note-form" class="add-entity-form">
+                        <h4 id="note-form-title">Add New Note</h4>
+                        <input type="hidden" id="note-id">
+                        <div class="form-group">
+                            <label for="note-title">Note Title:</label>
+                            <input type="text" id="note-title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="note-content">Note Content:</label>
+                            <textarea id="note-content" rows="6" placeholder="Enter your note content here..."></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-success" id="save-note-btn">Save Note</button>
+                            <button type="button" class="btn-secondary" id="cancel-note-btn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- NEW: Daily Checklist Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Daily Checklist</h2>
+                        <span class="card-icon">☑️</span>
+                    </div>
+                    <div class="card-content">
+                        <div class="date-picker-container">
+                            <label for="checklist-date">Date:</label>
+                            <input type="date" id="checklist-date">
+                        </div>
+                        <div class="scrollable-content">
+                            <div id="daily-checklist-container"></div>
+                        </div>
+                    </div>
+                    <div class="card-actions">
+                        <button id="add-checklist-item-btn" class="btn-primary">+ Add Checklist Item</button>
+                    </div>
+                </div>
+                
+                <!-- NEW: Add Checklist Item Form (Hidden by default) -->
+                <div id="add-checklist-item-form-container" class="form-container" style="display: none;">
+                    <form id="add-checklist-item-form" class="add-entity-form">
+                        <h4>Add Checklist Item</h4>
+                        <div class="form-group">
+                            <label for="checklist-question">Question/Item:</label>
+                            <input type="text" id="checklist-question" placeholder="e.g., Did I exercise today?" required>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-success">Add Item</button>
+                            <button type="button" class="btn-secondary" id="cancel-checklist-item-btn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
                     <!-- NEW: Numeric input fields -->
                     <div class="form-group-row" id="recurring-task-numeric-inputs">
                         <div class="form-group">
