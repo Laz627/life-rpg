@@ -553,6 +553,9 @@ input:focus, select:focus, textarea:focus {
     border: 1px solid #f9e79f;
     border-radius: var(--border-radius);
     margin-bottom: 15px;
+    /* --- Add the following two lines --- */
+    max-height: 250px; /* Or any height that fits your layout */
+    overflow-y: auto;  /* This enables the vertical scrollbar when needed */
 }
 .narrative-content {
     white-space: pre-wrap;
@@ -567,6 +570,20 @@ input:focus, select:focus, textarea:focus {
     padding-bottom: 5px;
 }
 
+.narrative::-webkit-scrollbar {
+    width: 8px;
+}
+.narrative::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+.narrative::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
+}
+.narrative::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+}
 
 /* Pagination */
 .pagination {
