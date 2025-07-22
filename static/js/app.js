@@ -678,6 +678,7 @@ function renderNotes() {
     notes.forEach(note => {
         const noteEl = document.createElement('div');
         noteEl.className = 'note-item';
+        // The onclick for viewing the full note
         noteEl.setAttribute('onclick', `viewNote(${note.id})`);
         noteEl.innerHTML = `
             <div class="note-header">
@@ -719,7 +720,6 @@ function viewNote(noteId) {
     document.getElementById('view-note-content-container').innerHTML = note.content.replace(/\n/g, '<br>');
     openModal('viewNoteModal');
 }
-
 
 // --- NEW: Daily Checklist Functions ---
 async function fetchAndRenderDailyChecklist(date) {
