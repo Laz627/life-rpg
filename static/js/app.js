@@ -401,86 +401,12 @@ async function handleDateChange(e) {
     await fetchAndRenderDailyNarrative(currentSelectedDate);
 }
 
-async function handleAddTask(event) {
-    event.preventDefault();
-    const form = event.target;
-    const isNegative = form.querySelector('#task-type-radio .selected').dataset.value === 'negative';
-    const payload = {
-        description: form.querySelector('#task-description').value,
-        attribute: form.querySelector('#task-attribute').value,
-        difficulty: form.querySelector('#task-difficulty').value,
-        stress_effect: parseInt(form.querySelector('#task-stress').value),
-        is_negative_habit: isNegative,
-        date: currentSelectedDate,
-        numeric_value: isNegative ? null : form.querySelector('#task-numeric-value').value || null,
-        numeric_unit: isNegative ? null : form.querySelector('#task-numeric-unit').value || null
-    };
-
-    const result = await apiCall('/api/add_task', 'POST', payload);
-    if (result && result.success) {
-        form.reset();
-        setupRadioGroup('task-type-radio', 'task-difficulty-group', 'task-stress', 'task-stress-value-display', 'task-numeric-inputs');
-        toggleForm('add-task-form-container');
-        await fetchAndRenderTasks(currentSelectedDate);
-        if (!payload.is_negative_habit && payload.attribute) await fetchAndRenderAttributes();
-        await fetchAndRenderStats();
-        await fetchAndRenderHeatmap(heatmapCurrentDate.getFullYear(), heatmapCurrentDate.getMonth() + 1);
-        await fetchAndRenderHabitProgressor();
-    }
-}
-
 async function handleResetDay() {
     if (!confirm(`Are you sure you want to reset all data for ${currentSelectedDate}? This action cannot be undone.`)) return;
     const result = await apiCall('/api/reset_day', 'POST', { date: currentSelectedDate });
     if (result && result.success) {
         alert(`Day ${result.date} has been reset. Tasks deleted: ${result.tasks_deleted}.`);
         await initializePageData();
-    }
-}
-
-async function handleAddRecurringTask(event) {
-    event.preventDefault();
-    const form = event.target;
-    const isNegative = form.querySelector('#recurring-task-type-radio .selected').dataset.value === 'negative';
-    const payload = {
-        description: form.querySelector('#recurring-task-description').value,
-        attribute: form.querySelector('#recurring-task-attribute').value,
-        difficulty: form.querySelector('#recurring-task-difficulty').value,
-        stress_effect: parseInt(form.querySelector('#recurring-task-stress').value),
-        is_negative_habit: isNegative,
-        numeric_value: isNegative ? null : form.querySelector('#recurring-task-numeric-value').value || null,
-        numeric_unit: isNegative ? null : form.querySelector('#recurring-task-numeric-unit').value || null
-    };
-    const result = await apiCall('/api/recurring_tasks', 'POST', payload);
-    if (result && result.success) {
-        form.reset();
-        setupRadioGroup('recurring-task-type-radio', 'recurring-task-difficulty-group', 'recurring-task-stress', 'recurring-task-stress-value-display', 'recurring-task-numeric-inputs');
-        toggleForm('add-recurring-task-form-container');
-        await fetchAndRenderRecurringTasks();
-        await fetchAndRenderTasks(currentSelectedDate);
-        await fetchAndRenderHabitProgressor();
-    }
-}
-
-async function handleAddQuest(event) {
-    event.preventDefault();
-    const form = event.target;
-    const payload = {
-        title: form.querySelector('#quest-title').value,
-        description: form.querySelector('#quest-description').value,
-        difficulty: form.querySelector('#quest-difficulty').value,
-        attribute_focus: form.querySelector('#quest-attribute').value,
-        due_date: form.querySelector('#quest-due-date').value || null,
-    };
-    const diffToXp = {"Easy": 50, "Medium": 100, "Hard": 175, "Epic": 250};
-    payload.xp_reward = diffToXp[payload.difficulty] || 100;
-
-    const result = await apiCall('/api/add_quest', 'POST', payload);
-    if (result && result.success) {
-        form.reset();
-        toggleForm('add-quest-form-container');
-        await fetchAndRenderQuests();
-        await fetchAndRenderStats();
     }
 }
 
@@ -752,12 +678,13 @@ function renderNotes() {
     notes.forEach(note => {
         const noteEl = document.createElement('div');
         noteEl.className = 'note-item';
+        noteEl.setAttribute('onclick', `viewNote(${note.id})`);
         noteEl.innerHTML = `
             <div class="note-header">
                 <h4 class="note-title">${note.title}</h4>
                 <div class="note-actions">
-                    <button onclick="editNote(${note.id})" class="btn-secondary btn-small">✏️ Edit</button>
-                    <button onclick="deleteNote(${note.id})" class="btn-danger btn-small">🗑️ Delete</button>
+                    <button onclick="event.stopPropagation(); editNote(${note.id})" class="btn-secondary btn-small">✏️ Edit</button>
+                    <button onclick="event.stopPropagation(); deleteNote(${note.id})" class="btn-danger btn-small">🗑️ Delete</button>
                 </div>
             </div>
             <div class="note-content-preview">${note.content.substring(0, 150)}${note.content.length > 150 ? '...' : ''}</div>
@@ -775,44 +702,6 @@ function resetNoteForm() {
     document.getElementById('save-note-btn').textContent = 'Save Note';
 }
 
-async function handleAddNote(event) {
-    event.preventDefault();
-    const form = event.target;
-    const noteId = document.getElementById('note-id').value;
-    const isEditing = !!noteId;
-    
-    const payload = {
-        title: form.querySelector('#note-title').value,
-        content: form.querySelector('#note-content').value
-    };
-    
-    let result;
-    if (isEditing) {
-        result = await apiCall(`/api/notes/${noteId}`, 'PUT', payload);
-    } else {
-        result = await apiCall('/api/notes', 'POST', payload);
-    }
-    
-    if (result && result.success) {
-        resetNoteForm();
-        toggleForm('add-note-form-container');
-        await fetchAndRenderNotes();
-    }
-}
-
-async function editNote(noteId) {
-    const note = notes.find(n => n.id === noteId);
-    if (!note) return;
-    
-    document.getElementById('note-form-title').textContent = 'Edit Note';
-    document.getElementById('note-id').value = note.id;
-    document.getElementById('note-title').value = note.title;
-    document.getElementById('note-content').value = note.content;
-    document.getElementById('save-note-btn').textContent = 'Update Note';
-    
-    toggleForm('add-note-form-container');
-}
-
 async function deleteNote(noteId) {
     if (!confirm('Are you sure you want to delete this note?')) return;
     
@@ -821,6 +710,16 @@ async function deleteNote(noteId) {
         await fetchAndRenderNotes();
     }
 }
+
+// --- NEW: View Note Functionality ---
+function viewNote(noteId) {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    document.getElementById('view-note-title').textContent = note.title;
+    document.getElementById('view-note-content-container').innerHTML = note.content.replace(/\n/g, '<br>');
+    openModal('viewNoteModal');
+}
+
 
 // --- NEW: Daily Checklist Functions ---
 async function fetchAndRenderDailyChecklist(date) {
@@ -864,19 +763,6 @@ function renderDailyChecklist() {
 async function handleChecklistDateChange(event) {
     currentChecklistDate = event.target.value;
     await fetchAndRenderDailyChecklist(currentChecklistDate);
-}
-
-async function handleAddChecklistItem(event) {
-    event.preventDefault();
-    const form = event.target;
-    const question = form.querySelector('#checklist-question').value;
-    
-    const result = await apiCall('/api/daily_checklist_items', 'POST', { question });
-    if (result && result.success) {
-        form.reset();
-        toggleForm('add-checklist-item-form-container');
-        await fetchAndRenderDailyChecklist(currentChecklistDate);
-    }
 }
 
 async function logChecklistItem(itemId, status) {
