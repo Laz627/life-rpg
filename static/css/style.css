@@ -1718,3 +1718,69 @@ input[type="range"]::-moz-range-thumb {
         border-color: rgba(23, 162, 184, 0.3);
     }
 }
+/* NEW: Notes Styles */
+.note-item {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+    cursor: pointer; /* Makes the card feel clickable */
+}
+
+.note-item:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.note-title {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.note-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.note-content-preview {
+    color: var(--text-color);
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.note-meta {
+    font-size: 12px;
+    color: var(--text-light-color);
+}
+
+/* Styles for the new "View Note" modal content */
+#view-note-content-container {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: var(--border-radius);
+    white-space: pre-wrap; /* Respects line breaks in the note */
+    line-height: 1.6;
+    max-height: 60vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+}
+
+@media (prefers-color-scheme: dark) {
+    #view-note-content-container {
+        background: #3a3a3a;
+        color: #eee;
+        border-color: #555;
+    }
+}
